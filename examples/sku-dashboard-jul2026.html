@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图谱艺术 · Editorial Graph Art — 53 种动态交互图型</title>
+<style>
+/* ============ EDITORIAL GRAPH ART · 图谱艺术画廊 ============
+   纯白纸面 #FFFFFF · 三套可切换色板：
+   ① 黑白极简 MONO  ② 墨蓝 #2A3B4D 透明度阶梯 + 珊瑚 #C84A31  ③ 珊瑚 #C84A31 阶梯
+   点阵 / 刻度 / 发丝线 · roll-in 入场 + 永续微动 + hover 交互
+   换数据：每个 fig() 内的 d 数组即为该图数据区 */
+:root{
+  --paper:#FFFFFF;--ink:#2A3B4D;--i70:rgba(42,59,77,.70);--i55:rgba(42,59,77,.55);
+  --i35:rgba(42,59,77,.35);--i18:rgba(42,59,77,.18);--i08:rgba(42,59,77,.08);
+  --acc:#C84A31;--accdim:rgba(200,74,49,.14);
+  --serif:Georgia,'Songti SC','Times New Roman',serif;
+  --mono:'SF Mono',Menlo,Consolas,'Courier New',monospace;
+  --sans:-apple-system,'PingFang SC','Helvetica Neue',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--paper);
+  color:var(--ink);font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:56px 32px 80px}
+/* ---------- 页眉 ---------- */
+.masthead{border-bottom:1px solid var(--ink);padding-bottom:28px;margin-bottom:8px;position:relative}
+.kicker{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--i55);text-transform:uppercase}
+.masthead h1{font-family:var(--serif);font-weight:400;font-size:44px;line-height:1.15;margin:14px 0 10px;max-width:720px}
+.masthead h1 em{font-style:normal;color:var(--acc)}
+.masthead .dek{font-size:13px;color:var(--i70);max-width:560px;line-height:1.7}
+.masthead .meta{position:absolute;right:0;top:0;text-align:right;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--i55);line-height:2}
+#allrp{position:absolute;right:0;bottom:28px;background:var(--ink);color:var(--paper);border:none;
+  font-family:var(--mono);font-size:10px;letter-spacing:.18em;padding:9px 16px;cursor:pointer;transition:background .2s}
+#allrp:hover{background:var(--acc)}
+/* ---------- 色板切换 ---------- */
+.themes{display:flex;gap:8px;margin-top:18px;align-items:center}
+.themes .tlab{font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:var(--i35)}
+.thm{display:flex;align-items:center;gap:7px;background:none;border:1px solid var(--i18);color:var(--i55);
+  font-family:var(--mono);font-size:9px;letter-spacing:.14em;padding:6px 12px;cursor:pointer;transition:all .2s}
+.thm:hover{border-color:var(--i55);color:var(--ink)}
+.thm.on{border-color:var(--ink);color:var(--ink);font-weight:600}
+.thm .sw{width:14px;height:14px;border-radius:50%;border:1px solid var(--i18);flex-shrink:0}
+.thm .sw.b1{background:#111}.thm .sw.b2{background:#2A3B4D}.thm .sw.b3{background:#C84A31}
+/* ---------- 图表网格 ---------- */
+main{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));column-gap:56px}
+@media(max-width:1140px){main{grid-template-columns:1fr}}
+.fig{border-top:1px solid var(--i35);padding:22px 0 30px;break-inside:avoid}
+.fighead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.hleft{max-width:440px}
+.ft{font-family:var(--serif);font-weight:400;font-size:21px;line-height:1.3;margin:7px 0 5px}
+.fsub{font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:var(--i35);text-transform:uppercase}
+.fnote{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--i55);margin-top:8px;line-height:1.8;max-width:460px}
+.rp{background:none;border:1px solid var(--i35);color:var(--i55);font-family:var(--mono);font-size:9px;
+  letter-spacing:.14em;padding:6px 10px;cursor:pointer;flex-shrink:0;transition:all .2s}
+.rp:hover{border-color:var(--acc);color:var(--acc)}
+.viz{position:relative}
+.viz svg{display:block;width:100%;height:auto;overflow:visible}
+.viz [data-tip]{cursor:crosshair;transition:opacity .18s}
+.viz [data-tip]:hover{opacity:.62}
+footer{border-top:1px solid var(--ink);margin-top:8px;padding-top:18px;display:flex;justify-content:space-between;
+  font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--i55)}
+/* ---------- tooltip ---------- */
+#tip{position:fixed;z-index:99;background:var(--ink);color:var(--paper);font-family:var(--mono);
+  font-size:10px;letter-spacing:.06em;padding:6px 10px;pointer-events:none;opacity:0;
+  transition:opacity .12s;white-space:nowrap;border-radius:0}
+/* ---------- 入场动画（叙事层）---------- */
+.draw{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .9s cubic-bezier(.5,0,.2,1) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.pop{transform-box:fill-box;transform-origin:center;transform:scale(0);animation:pop .5s cubic-bezier(.2,.8,.3,1.25) forwards}
+@keyframes pop{to{transform:scale(1)}}
+.rise{opacity:0;transform:translateY(8px);animation:rise .55s ease-out forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+.fade{opacity:0;animation:fadein .7s ease-out forwards}
+@keyframes fadein{to{opacity:1}}
+.growY{transform-box:fill-box;transform-origin:bottom;transform:scaleY(0);animation:growY .7s cubic-bezier(.3,.7,.3,1) forwards}
+@keyframes growY{to{transform:scaleY(1)}}
+.growYd{transform-box:fill-box;transform-origin:top;transform:scaleY(0);animation:growYd .7s cubic-bezier(.3,.7,.3,1) forwards}
+@keyframes growYd{to{transform:scaleY(1)}}
+.growX{transform-box:fill-box;transform-origin:left;transform:scaleX(0);animation:growX .7s cubic-bezier(.3,.7,.3,1) forwards}
+@keyframes growX{to{transform:scaleX(1)}}
+/* ---------- 永续微动 ---------- */
+.sway{transform-box:fill-box;transform-origin:bottom center;animation:sway 5.2s ease-in-out infinite alternate}
+@keyframes sway{from{transform:rotate(-1.5deg)}to{transform:rotate(1.5deg)}}
+.tw{animation:tw 3.4s ease-in-out infinite}
+@keyframes tw{0%,100%{opacity:1}50%{opacity:.22}}
+.breathe{animation:breathe 3.2s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.45}}
+.bob{animation:bob 4.2s ease-in-out infinite alternate}
+@keyframes bob{from{transform:translateY(-1.6px)}to{transform:translateY(1.6px)}}
+.flow{stroke-dasharray:2 7;animation:flow 2.2s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-9}}
+.spin{transform-box:fill-box;transform-origin:center;animation:spin 90s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fall{animation:fall linear infinite}
+@keyframes fall{from{transform:translateY(-40px);opacity:0}12%{opacity:1}88%{opacity:1}to{transform:translateY(var(--fy));opacity:0}}
+.blown{animation:blow 1.3s cubic-bezier(.3,.6,.6,1) forwards}
+@keyframes blow{to{transform:translate(var(--dx),var(--dy)) scale(.5);opacity:0}}
+.str{transform-box:fill-box}
+.str:hover{animation:wig .6s ease-out;stroke:var(--acc)}
+@keyframes wig{0%{transform:translateX(0)}25%{transform:translateX(1.8px)}50%{transform:translateX(-1.4px)}75%{transform:translateX(.8px)}100%{transform:translateX(0)}}
+.seg{transition:stroke-width .18s;cursor:crosshair}
+.seg:hover{stroke-width:15}
+.eb{transition:stroke .18s,stroke-width .18s;cursor:crosshair}
+.eb:hover{stroke:var(--acc);stroke-width:2}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <span class="kicker">Minimal-Charts · SKU明细_B — 2026年7月 · 3 Figures</span>
+    <h1>七月的生意，长成<em>形态</em></h1>
+    <p class="dek">SKU明细_B 2026年7月：66 行销售记录 · 17 位销售 · 4 个大区 · 5 个品类 · 12 支 SKU · 总额 ¥2,391,227。随机抽取画廊 3 种图型重述——弦环（FIG.10）看大区×品类的引力，涟漪扇（FIG.19）排五个品类的量级，径向棒糖（FIG.7）悬起十二支 SKU。悬停读数，色板三选一。</p>
+    <div class="themes" id="themes">
+      <span class="tlab">PALETTE</span>
+      <button class="thm" data-theme="mono"><span class="sw b1"></span>MONO 黑白</button>
+      <button class="thm on" data-theme="ink"><span class="sw b2"></span>INK 墨蓝</button>
+      <button class="thm" data-theme="coral"><span class="sw b3"></span>CORAL 珊瑚</button>
+    </div>
+    <div class="meta">SHEET SKU明细_B · 2026-07<br>3 FIGURES PICKED FROM 59 · SWAPPABLE PALETTE<br>INK #2A3B4D · ACCENT #C84A31</div>
+    <button id="allrp">↻ REPLAY ALL</button>
+  </header>
+  <main id="charts"></main>
+  <footer>
+    <span>EDITORIAL GRAPH ART — PAPER / INK / ONE CORAL</span>
+    <span>HOVER TO READ · CLICK REPLAY TO REGROW</span>
+  </footer>
+</div>
+<div id="tip"></div>
+<script>
+/* ================= 通用助手 ================= */
+/* ================= 色板系统（可切换） =================
+   mono  黑白极简：墨=#111 阶梯，强调=纯黑
+   ink   墨蓝：墨=#2A3B4D 阶梯，强调=珊瑚 #C84A31（默认）
+   coral 珊瑚：墨=#C84A31 阶梯，强调=墨蓝 #2A3B4D */
+const THEMES={
+  mono :{ink:'#111111',acc:'#000000',rgb:'17,17,17',  accRGB:'17,17,17'},
+  ink  :{ink:'#2A3B4D',acc:'#C84A31',rgb:'42,59,77',  accRGB:'200,74,49'},
+  coral:{ink:'#C84A31',acc:'#2A3B4D',rgb:'200,74,49', accRGB:'42,59,77'}
+};
+let CUR=THEMES.ink;
+let INK=CUR.ink,ACC=CUR.acc,PAPER='#FFFFFF';
+let i70,i55,i35,i18,i08,accdim;
+const inkA=a=>`rgba(${CUR.rgb},${a})`;
+const accA=a=>`rgba(${CUR.accRGB},${a})`;
+function applyPaletteVars(){const c=CUR,r=document.documentElement.style;
+  i70=`rgba(${c.rgb},.70)`;i55=`rgba(${c.rgb},.55)`;i35=`rgba(${c.rgb},.35)`;
+  i18=`rgba(${c.rgb},.18)`;i08=`rgba(${c.rgb},.08)`;accdim=`rgba(${c.accRGB},.14)`;
+  r.setProperty('--ink',c.ink);r.setProperty('--acc',c.acc);r.setProperty('--paper','#FFFFFF');
+  r.setProperty('--i70',i70);r.setProperty('--i55',i55);r.setProperty('--i35',i35);
+  r.setProperty('--i18',i18);r.setProperty('--i08',i08);r.setProperty('--accdim',accdim);}
+applyPaletteVars();
+const F1=n=>(+n).toFixed(1);
+const pol=(cx,cy,r,deg)=>{const a=(deg-90)*Math.PI/180;return[cx+r*Math.cos(a),cy+r*Math.sin(a)]};
+const arc=(cx,cy,r,a0,a1)=>{const[x0,y0]=pol(cx,cy,r,a0),[x1,y1]=pol(cx,cy,r,a1);
+  return`M${F1(x0)} ${F1(y0)}A${F1(r)} ${F1(r)} 0 ${a1-a0>180?1:0} 1 ${F1(x1)} ${F1(y1)}`};
+const band=(cx,cy,r0,r1,a0,a1)=>{const[x0,y0]=pol(cx,cy,r1,a0),[x1,y1]=pol(cx,cy,r1,a1),[x2,y2]=pol(cx,cy,r0,a1),[x3,y3]=pol(cx,cy,r0,a0),la=a1-a0>180?1:0;
+  return`M${F1(x0)} ${F1(y0)}A${F1(r1)} ${F1(r1)} 0 ${la} 1 ${F1(x1)} ${F1(y1)}L${F1(x2)} ${F1(y2)}A${F1(r0)} ${F1(r0)} 0 ${la} 0 ${F1(x3)} ${F1(y3)}Z`};
+const dot=(x,y,r,f,o={})=>`<circle cx="${F1(x)}" cy="${F1(y)}" r="${r}" fill="${f}"${o.s?` stroke="${o.s}" stroke-width="${o.sw||1}"`:''}${o.cls?` class="${o.cls}"`:''}${o.d?' pathLength="1"':''}${o.style?` style="${o.style}"`:''}${o.tip?` data-tip="${o.tip}"`:''}/>`;
+const ln=(x1,y1,x2,y2,st,w,o={})=>`<line x1="${F1(x1)}" y1="${F1(y1)}" x2="${F1(x2)}" y2="${F1(y2)}" stroke="${st}" stroke-width="${w}"${o.cap?` stroke-linecap="${o.cap}"`:''}${o.cls?` class="${o.cls}"`:''}${o.d?' pathLength="1"':''}${o.style?` style="${o.style}"`:''}${o.tip?` data-tip="${o.tip}"`:''}/>`;
+const T=(x,y,s,o={})=>`<text x="${typeof x==='number'?F1(x):x}" y="${typeof y==='number'?F1(y):y}" font-size="${o.fs||10}" fill="${o.f||i55}" font-family="${o.serif?'var(--serif)':(o.mono?'var(--mono)':'var(--sans)')}"${o.w?` font-weight="${o.w}"`:''}${o.a?` text-anchor="${o.a}"`:''}${o.ls?` letter-spacing="${o.ls}"`:''}${o.cls?` class="${o.cls}"`:''}${o.delay!==undefined?` style="animation-delay:${o.delay}ms"`:''}${o.tip?` data-tip="${o.tip}"`:''}>${s}</text>`;
+const figwrap=(w,h,inner)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+const hair=(w,y)=>ln(0,y,w,y,i18,1,{cap:'round'});
+const CH=[];const fig=o=>CH.push(o);
+const mx=v=>Math.max(...v);
+/* ================================================================
+   本页数据：SKU明细_B 2026年7月（66 行）
+   总额 ¥2,391,227 · 数量 10,953 · 4 大区 × 5 品类 × 12 SKU
+   图型随机抽取自 editorial-graph-gallery.html：FIG.10 / FIG.19 / FIG.07
+   ================================================================ */
+
+/* FIG.10 弦环 CHORD RING —— 大区×品类 流向（随机抽中） */
+fig({n:10,t:'四大区，五品类，一圈引力',sub:'Chord Ring · 弦环',note:'左半环=四个大区、右半环=五个品类（弧长=销售额），弦宽与深浅=区间销售额；最强一条（华东↔电子）珊瑚加粗并永续流动。悬停读数。',
+draw:(w,h)=>{const cx=w/2,cy=h/2-4,R=128;
+  const regs=[['华东',1010394],['华南',670726],['华北',452247],['西南',257860]];
+  const cats=[['电子',1022690],['健身',508085],['户外',312684],['补剂',282832],['家电',264936]];
+  const raw=[470477,229317,76245,95902,138453, 308471,122499,75334,105769,58653, 170562,72887,111564,29404,67830, 73180,83382,49541,51757,0];
+  const nodes=[...regs.map(r=>({k:r[0],v:r[1],reg:1})),...cats.map(c=>({k:c[0],v:c[1],reg:0}))];
+  const sum=nodes.reduce((p,c)=>p+c.v,0),G=3.2,n=nodes.length;
+  let acc=-90,gaps=0;nodes.forEach((c,i)=>{c.span=(360-(n+1)*G)*c.v/sum;c.a0=acc+G;acc=c.a0+c.span;c.am=c.a0+c.span/2;});
+  const M=raw.reduce((m,v)=>Math.max(m,v),0);
+  const wv=v=>1+v/M*3.6, op=v=>.10+v/M*.42;
+  let s='';let li=0;
+  for(let r=0;r<4;r++)for(let c=0;c<5;c++){const v=raw[r*5+c];if(!v)continue;
+    const A=nodes[r].am,B=nodes[4+c].am;
+    let d=Math.abs(B-A);if(d>180)d=360-d;
+    const mid=A+((B-A+540)%360-180)/2, rm=R*(1-.62*Math.min(d/180,1));
+    const[x1,y1]=pol(cx,cy,R,A),[x2,y2]=pol(cx,cy,R,B),[qx,qy]=pol(cx,cy,rm,mid);
+    const main=v===M, wan=(v/10000).toFixed(1);
+    s+=`<path d="M${F1(x1)} ${F1(y1)}Q${F1(qx)} ${F1(qy)} ${F1(x2)} ${F1(y2)}" fill="none" stroke="${main?ACC:inkA(op(v))}" stroke-width="${F1(main?2.2:wv(v))}"${main?' class="flow" pathLength="1"':''} style="${main?'':'animation-delay:'+li*60+'ms;'}" data-tip="${regs[r][0]} ↔ ${cats[c][0]} · ¥${v.toLocaleString()}（${wan}万）"/>`;
+    li++;}
+  nodes.forEach((c,i)=>{const hot=i===0||i===4;
+    s+=`<path d="${arc(cx,cy,R,c.a0,c.a0+c.span)}" fill="none" stroke="${c.reg?(i===0?ACC:inkA(.62)):(i===4?ACC:inkA(.45))}" stroke-width="5" pathLength="1" class="draw" style="animation-delay:${i*70}ms"/>`;
+    const midA=c.am;let[lx,ly]=pol(cx,cy,R+16,midA);
+    const full=[['华东区','1,010,394'],['华南区','670,726'],['华北区','452,247'],['西南区','257,860'],['电子产品','1,022,690'],['运动健身','508,085'],['户外用品','312,684'],['营养补剂','282,832'],['家居家电','264,936']][i];
+    s+=T(lx,ly+3,c.k,{fs:9,f:hot?ACC:i55,mono:1,a:'middle',w:hot?'600':'400',cls:'rise',delay:i*70+250,tip:`${full[0]} · ¥${full[1]}`});});
+  s+=dot(cx,cy,3,INK,{cls:'pop'});
+  s+=T(cx,cy-2,'239.1万',{fs:17,f:INK,serif:1,a:'middle',cls:'rise',delay:500});
+  s+=T(cx,cy+14,'TOTAL · JUL 2026',{fs:7,f:i35,mono:1,ls:'.2em',a:'middle',cls:'fade',delay:650});
+  s+=T(cx,cy+176,'弧长=销售额 · 弦宽=区间额 · 珊瑚=最强通路（华东↔电子 47.0万）',{fs:7.5,f:i35,mono:1,ls:'.14em',a:'middle',cls:'fade',delay:900});
+  return figwrap(w,h+40,s);}});
+
+/* FIG.19 涟漪扇 RIPPLE FAN —— 五品类量级排档（随机抽中） */
+fig({n:19,t:'五个品类，五圈涟漪',sub:'Ripple Fan · 涟漪扇',note:'半径=排名，弧上标销售额（万元）：电子产品一圈独大，几乎等于其余四类之和。五弧相位错开呼吸，最大档珊瑚。',
+draw:(w,h)=>{const cx=w/2,cy=h/2-2;
+  const d=[{k:'电子产品',v:1022690},{k:'运动健身',v:508085},{k:'户外用品',v:312684},{k:'营养补剂',v:282832},{k:'家居家电',v:264936}];
+  let s='';
+  d.forEach((c,i)=>{const isMax=i===0,seg=150,r=44+i*24;
+    const wan=(c.v/10000).toFixed(1);
+    s+=`<path d="${arc(cx,cy,r,-seg/2,seg/2)}" fill="none" stroke="${isMax?ACC:i55}" stroke-width="${isMax?2.4:1.2+i*.3}" pathLength="1" class="draw breathe" style="animation-delay:${i*130}ms;--bd:${2.8+i*.5}s" data-tip="${c.k} · ¥${c.v.toLocaleString()} · 占比 ${(c.v/2391227*100).toFixed(1)}%"/>`;
+    const[lx,ly]=pol(cx,cy,r,seg/2+7);
+    s+=T(lx+6,ly+3,`${c.k} ${wan}万`,{fs:8,f:isMax?ACC:i55,mono:1,cls:'rise',delay:i*130+250});});
+  for(let i=0;i<7;i++){const a=-75+i*25;const[x1,y1]=pol(cx,cy,36,a),[x2,y2]=pol(cx,cy,148,a);
+    s+=ln(x1,y1,x2,y2,i08,1);}
+  s+=dot(cx,cy,3,INK,{cls:'pop'});
+  s+=T(cx,cy+172,'弧半径=排名 · 相位错开呼吸 · TOTAL 239.1万',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:1000});
+  return figwrap(w,h+30,s);}});
+
+/* FIG.07 径向棒糖 RADIAL LOLLIPOP —— 12 支 SKU 悬垂（随机抽中） */
+fig({n:7,t:'十二支SKU，悬线而量',sub:'Radial Lollipop · 径向棒糖',note:'茎长与糖球大小=销售额，顺时针自最大递减：智能手环 Pro 一枝独秀（63.0万），尾部的运动水壶只有 4.1万。悬停读数。',
+draw:(w,h)=>{const cx=w/2,cy=h/2,r0=52,r1=150;
+  const d=[{k:'手环',full:'智能手环Pro',v:630292,q:2108},{k:'筋膜枪',full:'筋膜枪',v:330503,q:947},{k:'耳机',full:'无线蓝牙耳机',v:267655,q:1345},{k:'炸锅',full:'空气炸锅',v:264936,q:664},{k:'蛋白粉',full:'蛋白粉',v:231748,q:1012},{k:'防晒衣',full:'防晒衣',v:160650,q:850},{k:'充电宝',full:'便携充电宝',v:124743,q:967},{k:'哑铃',full:'哑铃套装',v:116706,q:734},{k:'背包',full:'登山背包',v:110852,q:428},{k:'瑜伽垫',full:'瑜伽垫',v:60876,q:684},{k:'维生素',full:'维生素片',v:51084,q:516},{k:'水壶',full:'运动水壶',v:41182,q:698}];
+  const m=mx(d.map(x=>x.v));let s='';
+  s+=`<circle cx="${cx}" cy="${cy}" r="${r0}" fill="none" stroke="${i18}" stroke-width="1"/>`;
+  d.forEach((c,i)=>{const a=i*360/d.length;const isMax=i===0,r=r0+8+c.v/m*(r1-r0-20);
+    const[x,y]=pol(cx,cy,r,a),[bx,by]=pol(cx,cy,r0,a),[lx,ly]=pol(cx,cy,r+16,a);
+    s+=ln(bx,by,x,y,isMax?ACC:i35,1.2,{d:1,cls:'draw',style:`animation-delay:${i*90}ms`,tip:`${c.full} · ¥${c.v.toLocaleString()}`});
+    s+=dot(x,y,3+c.v/m*5,isMax?ACC:INK,{cls:'pop',style:`animation-delay:${280+i*90}ms`,tip:`${c.full} — ¥${c.v.toLocaleString()} · ${c.q} 件`});
+    s+=T(lx,ly+3,(c.v/10000).toFixed(1),{fs:8.5,f:isMax?ACC:i55,mono:1,w:isMax?'600':'400',a:'middle',cls:'rise',delay:340+i*90,tip:c.full});});
+  s+=T(cx,cy+4,'239.1万',{fs:15,f:INK,serif:1,a:'middle',cls:'rise',delay:200});
+  s+=T(cx,cy+16,'TOTAL · 10,953 件',{fs:7,f:i35,mono:1,ls:'.2em',a:'middle',cls:'fade',delay:400});
+  return figwrap(w,h,s);}});
+
+/* ================= 挂载 · 交互 · 重播 ================= */
+const root=document.getElementById('charts');
+root.innerHTML=CH.map(o=>`<figure class="fig"><div class="fighead"><div class="hleft"><span class="kicker">FIG. ${String(o.n).padStart(2,'0')}</span><h2 class="ft">${o.t}</h2><span class="fsub">${o.sub}</span></div><button class="rp" data-n="${o.n}" title="重播此图">↻ REPLAY</button></div><div class="viz">${o.draw(o.w||560,o.h||350)}</div><figcaption class="fnote">${o.note||''}</figcaption></figure>`).join('');
+function initFig(o){const el=document.getElementById('charts');if(!el)return;
+  const figEl=root.querySelector(`figure:nth-child(${CH.indexOf(o)+1})`);
+  if(o.init&&figEl)o.init(figEl);}
+CH.forEach(initFig);
+root.addEventListener('click',e=>{const b=e.target.closest('.rp');if(!b)return;
+  const o=CH.find(c=>c.n===+b.dataset.n);if(!o)return;
+  const figEl=b.closest('figure');if(!figEl)return;
+  if(figEl._raf)cancelAnimationFrame(figEl._raf);
+  figEl.querySelector('.viz').innerHTML=o.draw(o.w||560,o.h||350);
+  if(o.init)o.init(figEl);});
+function renderAll(){CH.forEach((o,i)=>{const figEl=root.querySelectorAll('figure')[i];if(!figEl)return;
+  if(figEl._raf)cancelAnimationFrame(figEl._raf);
+  figEl.querySelector('.viz').innerHTML=o.draw(o.w||560,o.h||350);
+  if(o.init)o.init(figEl);});}
+document.getElementById('allrp').addEventListener('click',renderAll);
+document.getElementById('themes').addEventListener('click',e=>{
+  const b=e.target.closest('.thm');if(!b)return;
+  CUR=THEMES[b.dataset.theme];applyPaletteVars();
+  document.querySelectorAll('.thm').forEach(x=>x.classList.toggle('on',x===b));
+  renderAll();});
+const tip=document.getElementById('tip');
+document.addEventListener('mousemove',e=>{const t=e.target.closest&&e.target.closest('[data-tip]');
+  if(t){tip.textContent=t.dataset.tip;tip.style.opacity=1;
+    let x=e.clientX+14,y=e.clientY+14;const r=tip.getBoundingClientRect();
+    if(x+r.width>innerWidth)x=e.clientX-r.width-14;
+    if(y+r.height>innerHeight)y=e.clientY-r.height-14;
+    tip.style.left=x+'px';tip.style.top=y+'px';}
+  else tip.style.opacity=0;});
+</script>
+</body>
+</html>

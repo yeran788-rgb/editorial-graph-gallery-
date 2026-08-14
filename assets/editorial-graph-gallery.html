@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图谱艺术 · Editorial Graph Art — 58 种动态交互图型</title>
+<style>
+/* ============ EDITORIAL GRAPH ART · 图谱艺术画廊 ============
+   纯白纸面 #FFFFFF · 三套可切换色板：
+   ① 黑白极简 MONO  ② 墨蓝 #2A3B4D 透明度阶梯 + 珊瑚 #C84A31  ③ 珊瑚 #C84A31 阶梯
+   点阵 / 刻度 / 发丝线 · roll-in 入场 + 永续微动 + hover 交互
+   换数据：每个 fig() 内的 d 数组即为该图数据区 */
+:root{
+  --paper:#FFFFFF;--ink:#2A3B4D;--i70:rgba(42,59,77,.70);--i55:rgba(42,59,77,.55);
+  --i35:rgba(42,59,77,.35);--i18:rgba(42,59,77,.18);--i08:rgba(42,59,77,.08);
+  --acc:#C84A31;--accdim:rgba(200,74,49,.14);
+  --serif:Georgia,'Songti SC','Times New Roman',serif;
+  --mono:'SF Mono',Menlo,Consolas,'Courier New',monospace;
+  --sans:-apple-system,'PingFang SC','Helvetica Neue',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--paper);
+  color:var(--ink);font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:56px 32px 80px}
+/* ---------- 页眉 ---------- */
+.masthead{border-bottom:1px solid var(--ink);padding-bottom:28px;margin-bottom:8px;position:relative}
+.kicker{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--i55);text-transform:uppercase}
+.masthead h1{font-family:var(--serif);font-weight:400;font-size:44px;line-height:1.15;margin:14px 0 10px;max-width:720px}
+.masthead h1 em{font-style:normal;color:var(--acc)}
+.masthead .dek{font-size:13px;color:var(--i70);max-width:560px;line-height:1.7}
+.masthead .meta{position:absolute;right:0;top:0;text-align:right;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--i55);line-height:2}
+#allrp{position:absolute;right:0;bottom:28px;background:var(--ink);color:var(--paper);border:none;
+  font-family:var(--mono);font-size:10px;letter-spacing:.18em;padding:9px 16px;cursor:pointer;transition:background .2s}
+#allrp:hover{background:var(--acc)}
+/* ---------- 色板切换 ---------- */
+.themes{display:flex;gap:8px;margin-top:18px;align-items:center}
+.themes .tlab{font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:var(--i35)}
+.thm{display:flex;align-items:center;gap:7px;background:none;border:1px solid var(--i18);color:var(--i55);
+  font-family:var(--mono);font-size:9px;letter-spacing:.14em;padding:6px 12px;cursor:pointer;transition:all .2s}
+.thm:hover{border-color:var(--i55);color:var(--ink)}
+.thm.on{border-color:var(--ink);color:var(--ink);font-weight:600}
+.thm .sw{width:14px;height:14px;border-radius:50%;border:1px solid var(--i18);flex-shrink:0}
+.thm .sw.b1{background:#111}.thm .sw.b2{background:#2A3B4D}.thm .sw.b3{background:#C84A31}
+/* ---------- 图表网格 ---------- */
+main{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));column-gap:56px}
+@media(max-width:1140px){main{grid-template-columns:1fr}}
+.fig{border-top:1px solid var(--i35);padding:22px 0 30px;break-inside:avoid}
+.fighead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.hleft{max-width:440px}
+.ft{font-family:var(--serif);font-weight:400;font-size:21px;line-height:1.3;margin:7px 0 5px}
+.fsub{font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:var(--i35);text-transform:uppercase}
+.fnote{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--i55);margin-top:8px;line-height:1.8;max-width:460px}
+.rp{background:none;border:1px solid var(--i35);color:var(--i55);font-family:var(--mono);font-size:9px;
+  letter-spacing:.14em;padding:6px 10px;cursor:pointer;flex-shrink:0;transition:all .2s}
+.rp:hover{border-color:var(--acc);color:var(--acc)}
+.viz{position:relative}
+.viz svg{display:block;width:100%;height:auto;overflow:visible}
+.viz [data-tip]{cursor:crosshair;transition:opacity .18s}
+.viz [data-tip]:hover{opacity:.62}
+footer{border-top:1px solid var(--ink);margin-top:8px;padding-top:18px;display:flex;justify-content:space-between;
+  font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--i55)}
+/* ---------- tooltip ---------- */
+#tip{position:fixed;z-index:99;background:var(--ink);color:var(--paper);font-family:var(--mono);
+  font-size:10px;letter-spacing:.06em;padding:6px 10px;pointer-events:none;opacity:0;
+  transition:opacity .12s;white-space:nowrap;border-radius:0}
+/* ---------- 入场动画（叙事层）---------- */
+.draw{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .9s cubic-bezier(.5,0,.2,1) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.pop{transform-box:fill-box;transform-origin:center;transform:scale(0);animation:pop .5s cubic-bezier(.2,.8,.3,1.25) forwards}
+@keyframes pop{to{transform:scale(1)}}
+.rise{opacity:0;transform:translateY(8px);animation:rise .55s ease-out forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+.fade{opacity:0;animation:fadein .7s ease-out forwards}
+@keyframes fadein{to{opacity:1}}
+.growY{transform-box:fill-box;transform-origin:bottom;transform:scaleY(0);animation:growY .7s cubic-bezier(.3,.7,.3,1) forwards}
+@keyframes growY{to{transform:scaleY(1)}}
+.growYd{transform-box:fill-box;transform-origin:top;transform:scaleY(0);animation:growYd .7s cubic-bezier(.3,.7,.3,1) forwards}
+@keyframes growYd{to{transform:scaleY(1)}}
+.growX{transform-box:fill-box;transform-origin:left;transform:scaleX(0);animation:growX .7s cubic-bezier(.3,.7,.3,1) forwards}
+@keyframes growX{to{transform:scaleX(1)}}
+/* ---------- 永续微动 ---------- */
+.sway{transform-box:fill-box;transform-origin:bottom center;animation:sway 5.2s ease-in-out infinite alternate}
+@keyframes sway{from{transform:rotate(-1.5deg)}to{transform:rotate(1.5deg)}}
+.tw{animation:tw 3.4s ease-in-out infinite}
+@keyframes tw{0%,100%{opacity:1}50%{opacity:.22}}
+.breathe{animation:breathe 3.2s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.45}}
+.bob{animation:bob 4.2s ease-in-out infinite alternate}
+@keyframes bob{from{transform:translateY(-1.6px)}to{transform:translateY(1.6px)}}
+.flow{stroke-dasharray:2 7;animation:flow 2.2s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-9}}
+.spin{transform-box:fill-box;transform-origin:center;animation:spin 90s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fall{animation:fall linear infinite}
+@keyframes fall{from{transform:translateY(-40px);opacity:0}12%{opacity:1}88%{opacity:1}to{transform:translateY(var(--fy));opacity:0}}
+.blown{animation:blow 1.3s cubic-bezier(.3,.6,.6,1) forwards}
+@keyframes blow{to{transform:translate(var(--dx),var(--dy)) scale(.5);opacity:0}}
+.str{transform-box:fill-box}
+.str:hover{animation:wig .6s ease-out;stroke:var(--acc)}
+@keyframes wig{0%{transform:translateX(0)}25%{transform:translateX(1.8px)}50%{transform:translateX(-1.4px)}75%{transform:translateX(.8px)}100%{transform:translateX(0)}}
+.seg{transition:stroke-width .18s;cursor:crosshair}
+.seg:hover{stroke-width:15}
+.eb{transition:stroke .18s,stroke-width .18s;cursor:crosshair}
+.eb:hover{stroke:var(--acc);stroke-width:2}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <span class="kicker">Minimal-Charts · Style VI — Graph Art Edition</span>
+    <h1>数据成长的<em>形态</em></h1>
+    <p class="dek">58 种图谱艺术图型，生长在同一张纯白纸面上：刻度与发丝线是母语，绝大多数带永续微动与悬停读数，部分可拖拽、可吹散、可拨动。色板三选一：黑白极简 / 墨蓝阶梯 / 珊瑚。</p>
+    <div class="themes" id="themes">
+      <span class="tlab">PALETTE</span>
+      <button class="thm" data-theme="mono"><span class="sw b1"></span>MONO 黑白</button>
+      <button class="thm on" data-theme="ink"><span class="sw b2"></span>INK 墨蓝</button>
+      <button class="thm" data-theme="coral"><span class="sw b3"></span>CORAL 珊瑚</button>
+    </div>
+    <div class="meta">SHEET 01 / 07 FAMILIES<br>58 FIGURES · SWAPPABLE PALETTE<br>INK #2A3B4D · ACCENT #C84A31</div>
+    <button id="allrp">↻ REPLAY ALL</button>
+  </header>
+  <main id="charts"></main>
+  <footer>
+    <span>EDITORIAL GRAPH ART — PAPER / INK / ONE CORAL</span>
+    <span>HOVER TO READ · CLICK REPLAY TO REGROW</span>
+  </footer>
+</div>
+<div id="tip"></div>
+<script>
+/* ================= 通用助手 ================= */
+/* ================= 色板系统（可切换） =================
+   mono  黑白极简：墨=#111 阶梯，强调=纯黑
+   ink   墨蓝：墨=#2A3B4D 阶梯，强调=珊瑚 #C84A31（默认）
+   coral 珊瑚：墨=#C84A31 阶梯，强调=墨蓝 #2A3B4D */
+const THEMES={
+  mono :{ink:'#111111',acc:'#000000',rgb:'17,17,17',  accRGB:'17,17,17'},
+  ink  :{ink:'#2A3B4D',acc:'#C84A31',rgb:'42,59,77',  accRGB:'200,74,49'},
+  coral:{ink:'#C84A31',acc:'#2A3B4D',rgb:'200,74,49', accRGB:'42,59,77'}
+};
+let CUR=THEMES.ink;
+let INK=CUR.ink,ACC=CUR.acc,PAPER='#FFFFFF';
+let i70,i55,i35,i18,i08,accdim;
+const inkA=a=>`rgba(${CUR.rgb},${a})`;
+const accA=a=>`rgba(${CUR.accRGB},${a})`;
+function applyPaletteVars(){const c=CUR,r=document.documentElement.style;
+  i70=`rgba(${c.rgb},.70)`;i55=`rgba(${c.rgb},.55)`;i35=`rgba(${c.rgb},.35)`;
+  i18=`rgba(${c.rgb},.18)`;i08=`rgba(${c.rgb},.08)`;accdim=`rgba(${c.accRGB},.14)`;
+  r.setProperty('--ink',c.ink);r.setProperty('--acc',c.acc);r.setProperty('--paper','#FFFFFF');
+  r.setProperty('--i70',i70);r.setProperty('--i55',i55);r.setProperty('--i35',i35);
+  r.setProperty('--i18',i18);r.setProperty('--i08',i08);r.setProperty('--accdim',accdim);}
+applyPaletteVars();
+const F1=n=>(+n).toFixed(1);
+const pol=(cx,cy,r,deg)=>{const a=(deg-90)*Math.PI/180;return[cx+r*Math.cos(a),cy+r*Math.sin(a)]};
+const arc=(cx,cy,r,a0,a1)=>{const[x0,y0]=pol(cx,cy,r,a0),[x1,y1]=pol(cx,cy,r,a1);
+  return`M${F1(x0)} ${F1(y0)}A${F1(r)} ${F1(r)} 0 ${a1-a0>180?1:0} 1 ${F1(x1)} ${F1(y1)}`};
+const band=(cx,cy,r0,r1,a0,a1)=>{const[x0,y0]=pol(cx,cy,r1,a0),[x1,y1]=pol(cx,cy,r1,a1),[x2,y2]=pol(cx,cy,r0,a1),[x3,y3]=pol(cx,cy,r0,a0),la=a1-a0>180?1:0;
+  return`M${F1(x0)} ${F1(y0)}A${F1(r1)} ${F1(r1)} 0 ${la} 1 ${F1(x1)} ${F1(y1)}L${F1(x2)} ${F1(y2)}A${F1(r0)} ${F1(r0)} 0 ${la} 0 ${F1(x3)} ${F1(y3)}Z`};
+const dot=(x,y,r,f,o={})=>`<circle cx="${F1(x)}" cy="${F1(y)}" r="${r}" fill="${f}"${o.s?` stroke="${o.s}" stroke-width="${o.sw||1}"`:''}${o.cls?` class="${o.cls}"`:''}${o.d?' pathLength="1"':''}${o.style?` style="${o.style}"`:''}${o.tip?` data-tip="${o.tip}"`:''}/>`;
+const ln=(x1,y1,x2,y2,st,w,o={})=>`<line x1="${F1(x1)}" y1="${F1(y1)}" x2="${F1(x2)}" y2="${F1(y2)}" stroke="${st}" stroke-width="${w}"${o.cap?` stroke-linecap="${o.cap}"`:''}${o.cls?` class="${o.cls}"`:''}${o.d?' pathLength="1"':''}${o.style?` style="${o.style}"`:''}${o.tip?` data-tip="${o.tip}"`:''}/>`;
+const T=(x,y,s,o={})=>`<text x="${typeof x==='number'?F1(x):x}" y="${typeof y==='number'?F1(y):y}" font-size="${o.fs||10}" fill="${o.f||i55}" font-family="${o.serif?'var(--serif)':(o.mono?'var(--mono)':'var(--sans)')}"${o.w?` font-weight="${o.w}"`:''}${o.a?` text-anchor="${o.a}"`:''}${o.ls?` letter-spacing="${o.ls}"`:''}${o.cls?` class="${o.cls}"`:''}${o.delay!==undefined?` style="animation-delay:${o.delay}ms"`:''}${o.tip?` data-tip="${o.tip}"`:''}>${s}</text>`;
+const figwrap=(w,h,inner)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+const hair=(w,y)=>ln(0,y,w,y,i18,1,{cap:'round'});
+const CH=[];const fig=o=>CH.push(o);
+const mx=v=>Math.max(...v);
+
+/* ================================================================
+   族 A · 放射与蒲公英（RADIAL & DANDELION）— 12 型
+   ================================================================ */
+
+/* 1 蒲公英散种图 DANDELION —— 花茎从根发出，种子点距=数值，每茎独立摆动 */
+fig({n:1,t:'种子落向何方',sub:'Dandelion · 散种',note:'每根花茎=一个类别，茎长与种子距根的距离=数值。整株永续轻摆，悬停读数。',
+draw:(w,h)=>{const cx=w/2,cy=h-58;
+  const d=[{k:'ALPHA',v:82},{k:'BETA',v:64},{k:'GAMMA',v:91},{k:'DELTA',v:38},{k:'EPSILON',v:55},{k:'ZETA',v:72},{k:'ETA',v:47},{k:'THETA',v:60},{k:'IOTA',v:29}];
+  const m=mx(d.map(x=>x.v));let s='';
+  d.forEach((c,i)=>{const a=(-76+152*i/(d.length-1))*Math.PI/180,L=52+c.v/m*172;
+    const tx=cx+Math.sin(a)*L,ty=cy-Math.cos(a)*L,qx=cx+Math.sin(a)*L*.34,qy=cy-Math.cos(a)*L*.44;
+    const isMax=c.v===m,st=isMax?ACC:(i%2?i35:i55);
+    s+=`<g class="sway" style="animation-delay:${-i*0.7}s;animation-duration:${4.6+i*.35}s">`;
+    s+=`<path d="M${F1(cx)} ${F1(cy)} Q${F1(qx)} ${F1(qy)} ${F1(tx)} ${F1(ty)}" fill="none" stroke="${st}" stroke-width="${isMax?1.6:1.1}" pathLength="1" class="draw" style="animation-delay:${i*90}ms" data-tip="${c.k} · ${c.v}"/>`;
+    const sa=(-24+48*Math.random())*Math.PI/180;
+    for(let k=-1;k<=1;k++){const ex=tx+Math.cos(sa+k*.5)*10,ey=ty+Math.sin(sa+k*.5)*10;
+      s+=ln(tx,ty,ex,ey,st,0.9,{cls:'fade',style:`animation-delay:${400+i*90}ms`});}
+    s+=dot(tx,ty,isMax?3.6:2.8,isMax?ACC:INK,{cls:'pop',style:`animation-delay:${380+i*90}ms`,tip:`${c.k} — ${c.v} UNITS`});
+    if(isMax||i===0)s+=T(tx+(tx>cx?10:-10),ty-4,c.v,{fs:9,f:isMax?ACC:i55,mono:1,a:tx>cx?'start':'end',cls:'rise',delay:520+i*90});
+    s+='</g>';});
+  s+=dot(cx,cy,3.4,INK,{cls:'pop',style:'animation-delay:60ms'});
+  s+=ln(cx-36,cy+16,cx+36,cy+16,i35,1,{cap:'round'});
+  for(let i=0;i<7;i++)s+=ln(cx-30+i*10,cy+16,cx-30+i*10-3,cy+22,i35,1);
+  s+=T(cx,cy+40,'ROOT = ZERO · LONGEST STEM MARKED IN CORAL',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:800});
+  return figwrap(w,h,s);}});
+
+/* 2 蒲公英吹散图 DANDELION PUFF —— 点击花球吹散种子 */
+fig({n:2,t:'一口气，数落如絮',sub:'Dandelion Puff · 吹散（点击交互）',note:'种子数=总量。点击花球或 BLOW：种子沿随机方向飘散，REPLAY 重新长回。',
+draw:(w,h)=>{const cx=w/2,cy=h/2-6,total=36;
+  let s=`<g id="puffG" style="cursor:pointer" data-blow="1">`;
+  for(let i=0;i<total;i++){const a=i/total*360,R=26+38*Math.sqrt((i*7919%100)/100);
+    const[x,y]=pol(cx,cy,R,a);const dx=Math.cos((a-90)*Math.PI/180)*(90+Math.random()*120),dy=Math.sin((a-90)*Math.PI/180)*(90+Math.random()*120)-30;
+    const big=i%9===0;
+    s+=`<g class="pseed" style="--dx:${F1(dx)}px;--dy:${F1(dy)}px">`;
+    s+=ln(cx,cy,x,y,big?i35:i18,big?1.1:.7,{cls:'fade',style:`animation-delay:${i*28}ms`});
+    s+=dot(x,y,big?3:2.2,big?ACC:INK,{cls:'pop',style:`animation-delay:${120+i*28}ms`,tip:`SEED ${i+1} / ${total}`});
+    s+='</g>';}
+  s+=`</g>`;
+  s+=dot(cx,cy,5.5,INK,{cls:'breathe',tip:'CLICK TO BLOW'});
+  s+=T(w/2,h-26,'CLICK THE PUFF TO SCATTER — 36 SEEDS = 36 UNITS',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:900});
+  return figwrap(w,h,s);},
+init:el=>{const g=el.querySelector('[data-blow]');if(!g)return;
+  const blow=()=>g.querySelectorAll('.pseed').forEach(p=>p.classList.add('blown'));
+  g.addEventListener('click',blow);}});
+
+/* 3 旭日开扇图 SUNBURST —— 层级弧段逐层绽放 */
+fig({n:3,t:'年轮逐环展开',sub:'Sunburst · 旭日开扇',note:'内环 4 季、外环 12 月，弧长=数值。最大月份珊瑚定调。',
+draw:(w,h)=>{const cx=w/2,cy=h/2+4;
+  const seasons=[{k:'SPRING',v:120},{k:'SUMMER',v:180},{k:'AUTUMN',v:150},{k:'WINTER',v:90}];
+  const months=[31,42,28,38,45,36,44,32,40,30,26,22];const mm=mx(months);
+  let s='',a0=0;const tot=seasons.reduce((p,c)=>p+c.v,0);
+  seasons.forEach((se,si)=>{const span=se.v/tot*360-2.4;
+    s+=`<path d="${band(cx,cy,52,92,a0+1.2,a0+span+1.2)}" fill="${si===1?i18:i08}" stroke="none" class="pop" style="animation-delay:${si*160}ms" data-tip="${se.k} · ${se.v}"/>`;
+    const[lx,ly]=pol(cx,cy,72,a0+span/2+1.2);
+    s+=T(lx,ly+3,se.k,{fs:7.5,f:i55,mono:1,ls:'.1em',a:'middle',cls:'rise',delay:si*160+260});
+    const sub=months.slice(si*3,si*3+3);let b0=a0;sub.forEach((mv,mi)=>{const ms=span/3-2.4;
+      const isMax=mv===mm;
+      s+=`<path d="${band(cx,cy,98,138,b0+1.2,b0+ms+1.2)}" fill="${isMax?ACC:i35}" class="pop" style="animation-delay:${si*160+mi*80+250}ms" data-tip="MONTH ${si*3+mi+1} · ${mv}"/>`;
+      b0+=span/3;});
+    a0+=se.v/tot*360;});
+  s+=dot(cx,cy,3,INK,{cls:'pop'});
+  s+=T(cx,cy+158,'INNER = SEASONS · OUTER = MONTHS',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:1000});
+  return figwrap(w,h,s);}});
+
+/* 4 孔雀开屏点阵 PEACOCK FAN —— 弧行点计数，呼吸成律 */
+fig({n:4,t:'羽屏以点计数',sub:'Peacock Fan · 开屏点阵',note:'每行弧线=一类，点数=数值（每点 4 单位）。冠行珊瑚，行行呼吸。',
+draw:(w,h)=>{const cx=w/2,cy=h-46;
+  const d=[{k:'NORTH',v:56},{k:'SOUTH',v:44},{k:'EAST',v:40},{k:'WEST',v:32},{k:'CORE',v:24}];
+  const m=mx(d.map(x=>x.v));let s='';
+  d.forEach((c,ci)=>{const r=64+ci*34,n=Math.round(c.v/4),spread=140;
+    for(let k=0;k<n;k++){const a=-spread/2+spread*k/(n-1||1);const[x,y]=pol(cx,cy,r,a);
+      const isMax=c.v===m;
+      s+=dot(x,y,3,isMax?ACC:INK,{cls:'breathe pop',style:`animation-delay:${ci*150+k*24}ms;--bd:${3+ci*.4}s`,tip:`${c.k} · dot ${k+1}/${n} · ${c.v}`});}
+    const[e1x,e1y]=pol(cx,cy,r-12,-spread/2),[e2x,e2y]=pol(cx,cy,r-12,spread/2);
+    s+=`<path d="${arc(cx,cy,r-12,-spread/2,spread/2)}" fill="none" stroke="${c.v===m?ACC:i18}" stroke-width="1" pathLength="1" class="draw" style="animation-delay:${ci*150}ms"/>`;
+    const[lx,ly]=pol(cx,cy,r+14,0);
+    s+=T(lx,ly+3,`${c.k} ${c.v}`,{fs:8,f:c.v===m?ACC:i55,mono:1,a:'middle',cls:'rise',delay:ci*150+300});});
+  s+=dot(cx,cy,3,INK,{cls:'pop'});
+  return figwrap(w,h,s);}});
+
+/* 5 放射脉冲图 RADIAL BURST —— 射线长度=数值，末端刻度+读数 */
+fig({n:5,t:'四面皆有量尺',sub:'Radial Burst · 放射脉冲',note:'射线长度=数值，末端垂直短刻度收口。最长射线珊瑚+呼吸。',
+draw:(w,h)=>{const cx=w/2,cy=h/2+2,R=130;
+  const d=[{k:'MON',v:42},{k:'TUE',v:67},{k:'WED',v:88},{k:'THU',v:51},{k:'FRI',v:74},{k:'SAT',v:35},{k:'SUN',v:58}];
+  const m=mx(d.map(x=>x.v));let s='';
+  s+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${i08}" stroke-width="1" stroke-dasharray="1 5"/>`;
+  for(let i=0;i<24;i++){const a=i*15;const[x1,y1]=pol(cx,cy,R,a),[x2,y2]=pol(cx,cy,R+4,a);
+    s+=ln(x1,y1,x2,y2,i35,1,{tip:`${a}°`});}
+  d.forEach((c,i)=>{const a=-90+i*360/d.length;const isMax=c.v===m,r=24+c.v/m*(R-38);
+    const[x,y]=pol(cx,cy,r,a),[tx,ty]=pol(cx,cy,r+10,a);
+    s+=ln(cx,cy,x,y,isMax?ACC:i55,isMax?2:1.2,{d:1,cls:'draw',style:`animation-delay:${i*110}ms`,tip:`${c.k} · ${c.v}`});
+    const pa=a+90;const kx=Math.cos(pa*Math.PI/180),ky=Math.sin(pa*Math.PI/180);
+    s+=ln(x-kx*5,y-ky*5,x+kx*5,y+ky*5,isMax?ACC:i35,1.4,{cls:'fade',style:`animation-delay:${300+i*110}ms`});
+    const[lx,ly]=pol(cx,cy,R+16,a);
+    s+=T(lx,ly+3,c.k,{fs:8,f:i55,mono:1,a:'middle',cls:'rise',delay:340+i*110});
+    if(isMax)s+=T(lx,ly+15,c.v,{fs:9,f:ACC,mono:1,w:'600',a:'middle',cls:'rise',delay:420});});
+  s+=dot(cx,cy,3,INK,{cls:'pop'});
+  return figwrap(w,h,s);}});
+
+/* 6 轮辐刻度图 SPOKE WHEEL —— 每根轮辐用点计数，外圈缓转 */
+fig({n:6,t:'十二轮辐，点点为记',sub:'Spoke Wheel · 轮辐计数',note:'每根轮辐上的点数=数值（每点 3 单位），点层外圈 90s 缓转。悬停单点读数。',
+draw:(w,h)=>{const cx=w/2,cy=h/2+2,r0=34,r1=150;
+  const d=[9,14,7,12,18,11,15,8,13,16,10,6];const m=mx(d);let s='';
+  for(let u=1;u<=6;u++)s+=`<circle cx="${cx}" cy="${cy}" r="${r0+(r1-r0)*u/6}" fill="none" stroke="${i08}" stroke-width="1" stroke-dasharray="1 5"/>`;
+  s+=`<g class="spin">`;
+  d.forEach((v,i)=>{const a=i*30;const n=v;
+    for(let k=1;k<=n;k++){const r=r0+(r1-r0)*k/6;const[x,y]=pol(cx,cy,r,a);
+      s+=dot(x,y,2.4,v===m?ACC:INK,{cls:'pop',style:`animation-delay:${i*90+k*30}ms`,tip:`SPOKE ${i+1} · UNIT ${k} · VALUE ${v*3}`});}});
+  s+=`</g>`;
+  d.forEach((v,i)=>{const a=i*30;const[x,y]=pol(cx,cy,r1+14,a);
+    s+=T(x,y+3,String(i+1).padStart(2,'0'),{fs:8,f:v===m?ACC:i55,mono:1,a:'middle',cls:'rise',delay:i*90+400});});
+  s+=dot(cx,cy,3,INK,{cls:'pop'});
+  s+=T(cx,cy+r1+34,'EACH DOT = 3 UNITS · RING GRID AT EVERY 3',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:1100});
+  return figwrap(w,h,s);}});
+
+/* 7 放射棒棒糖 RADIAL LOLLIPOP —— 茎+端点圆，最大者珊瑚 */
+fig({n:7,t:'茎伸出去，糖落下来',sub:'Radial Lollipop · 棒糖',note:'内圈发出细茎，末端圆点大小=数值。悬停读数。',
+draw:(w,h)=>{const cx=w/2,cy=h/2,r0=52,r1=150;
+  const d=[{k:'A',v:30},{k:'B',v:52},{k:'C',v:78},{k:'D',v:44},{k:'E',v:66},{k:'F',v:38},{k:'G',v:58},{k:'H',v:48}];
+  const m=mx(d.map(x=>x.v));let s='';
+  s+=`<circle cx="${cx}" cy="${cy}" r="${r0}" fill="none" stroke="${i18}" stroke-width="1"/>`;
+  d.forEach((c,i)=>{const a=-90+i*360/d.length;const isMax=c.v===m,r=r0+8+c.v/m*(r1-r0-20);
+    const[x,y]=pol(cx,cy,r,a),[bx,by]=pol(cx,cy,r0,a),[lx,ly]=pol(cx,cy,r+16,a);
+    s+=ln(bx,by,x,y,isMax?ACC:i35,1.2,{d:1,cls:'draw',style:`animation-delay:${i*90}ms`,tip:`${c.k} · ${c.v}`});
+    s+=dot(x,y,3+c.v/m*5,isMax?ACC:INK,{cls:'pop',style:`animation-delay:${280+i*90}ms`,tip:`${c.k} — ${c.v} UNITS`});
+    s+=T(lx,ly+3,c.v,{fs:8.5,f:isMax?ACC:i55,mono:1,w:isMax?'600':'400',a:'middle',cls:'rise',delay:340+i*90});});
+  s+=T(cx,cy+4,d.reduce((p,c)=>p+c.v,0),{fs:15,f:INK,serif:1,a:'middle',cls:'rise',delay:200});
+  s+=T(cx,cy+16,'TOTAL',{fs:7,f:i35,mono:1,ls:'.2em',a:'middle',cls:'fade',delay:400});
+  return figwrap(w,h,s);}});
+
+/* 8 风玫瑰图 WIND ROSE —— 12 方位花瓣，最长风向珊瑚 */
+fig({n:8,t:'这一季风往哪吹',sub:'Wind Rose · 风玫瑰',note:'花瓣弧长=方位数值，N/E/S/W 定位。主导风向珊瑚。',
+draw:(w,h)=>{const cx=w/2,cy=h/2,R=140;
+  const d=[18,42,35,64,88,52,30,74,96,44,26,38];const m=mx(d);
+  const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  let s='';
+  s+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${i08}" stroke-width="1"/>`;
+  s+=`<circle cx="${cx}" cy="${cy}" r="${R*2/3}" fill="none" stroke="${i08}" stroke-width="1" stroke-dasharray="1 5"/>`;
+  s+=`<circle cx="${cx}" cy="${cy}" r="${R/3}" fill="none" stroke="${i08}" stroke-width="1" stroke-dasharray="1 5"/>`;
+  d.forEach((v,i)=>{const a=i*30;const isMax=v===m,r=26+v/m*(R-34);
+    s+=`<path d="${band(cx,cy,20,r,a-11,a+11)}" fill="${isMax?ACC:inkA(.3+.4*v/m)}" fill-opacity="${isMax?.9:.75}" class="pop" style="animation-delay:${i*80}ms;transform-box:fill-box;transform-origin:${cx}px ${cy}px" data-tip="${dirs[i]} · ${v}"/>`;
+    const[lx,ly]=pol(cx,cy,R+13,a);
+    s+=T(lx,ly+3,dirs[i],{fs:7.5,f:i%4===0?i55:i35,mono:1,a:'middle',cls:'rise',delay:i*80+300});});
+  s+=T(cx,cy+4,m,{fs:14,f:ACC,serif:1,a:'middle',cls:'rise',delay:600});
+  s+=T(cx,cy+15,'PEAK',{fs:6.5,f:i35,mono:1,ls:'.2em',a:'middle',cls:'fade',delay:800});
+  return figwrap(w,h,s);}});
+
+/* 9 径向条形图 RADIAL BARS —— 环内粗条向外生长 */
+fig({n:9,t:'学会了弯曲的条形',sub:'Radial Bars · 径向条形',note:'条形从内环向外生长（描线动画），条厚 10px，条缝 4°。',
+draw:(w,h)=>{const cx=w/2,cy=h/2,r0=54,r1=150;
+  const d=[{k:'Q1',v:58},{k:'Q2',v:82},{k:'Q3',v:70},{k:'Q4',v:94},{k:'AVG',v:66}];const m=mx(d.map(x=>x.v));
+  let s='';
+  s+=`<circle cx="${cx}" cy="${cy}" r="${r0}" fill="none" stroke="${i18}" stroke-width="1"/>`;
+  s+=`<circle cx="${cx}" cy="${cy}" r="${r1}" fill="none" stroke="${i08}" stroke-width="1" stroke-dasharray="1 5"/>`;
+  d.forEach((c,i)=>{const a=-90+i*360/d.length;const isMax=c.v===m,r=r0+4+c.v/m*(r1-r0-10);
+    s+=`<path d="${arc(cx,cy,r0+4,a-13,a+13)}" fill="none" stroke="${isMax?ACC:i55}" stroke-width="10" pathLength="1" class="draw" style="animation-delay:${i*130}ms" data-tip="${c.k} · ${c.v}"${isMax?' stroke-linecap="round"':''}/>`;
+    const[lx,ly]=pol(cx,cy,r0-14,a);
+    s+=T(lx,ly+3,c.k,{fs:8,f:isMax?ACC:i55,mono:1,a:'middle',cls:'rise',delay:i*130+260});
+    const[vx,vy]=pol(cx,cy,r+8,a);
+    s+=T(vx,vy+3,c.v,{fs:8.5,f:isMax?ACC:i70,mono:1,w:isMax?'600':'400',a:'middle',cls:'rise',delay:i*130+320});});
+  s+=dot(cx,cy,3,INK,{cls:'pop'});
+  return figwrap(w,h,s);}});
+
+/* 10 弦环图 CHORD RING —— 环上节点+弦流动 */
+fig({n:10,t:'环上的牵连',sub:'Chord Ring · 弦环',note:'节点沿环分布，弦的透明度=关系强度；主弦珊瑚流动虚线示方向。',
+draw:(w,h)=>{const cx=w/2,cy=h/2,R=132;
+  const nodes=[{k:'FIN',v:90},{k:'OPS',v:70},{k:'R&D',v:60},{k:'MKT',v:80},{k:'HR',v:40},{k:'LEG',v:35}];
+  const links=[[0,3,.9],[0,1,.5],[1,2,.7],[2,4,.3],[3,5,.4],[0,2,.6],[1,5,.25]];let s='';
+  links.forEach((L,li)=>{const[x1,y1]=pol(cx,cy,R,nodes[L[0]].v),[x2,y2]=pol(cx,cy,R,nodes[L[1]].v);
+    const a=L[0]*360/6-90+nodes[L[0]].v/2,b=L[1]*360/6-90+nodes[L[1]].v/2,mid=(a+b)/2,rm=R*.55*Math.abs(Math.sin((b-a)*Math.PI/360))+R*.3;
+    const[qx,qy]=pol(cx,cy,rm,mid);
+    const main=L[2]>=.85;
+    s+=`<path d="M${F1(x1)} ${F1(y1)}Q${F1(qx)} ${F1(qy)} ${F1(x2)} ${F1(y2)}" fill="none" stroke="${main?ACC:i35}" stroke-width="${main?1.6:1+F1(L[2])}"${main?' class="draw flow"':' pathLength="1" class="draw"'} style="animation-delay:${li*100}ms" data-tip="${nodes[L[0]].k} ↔ ${nodes[L[1]].k} · ${L[2]*100|0}%"/>`;});
+  nodes.forEach((c,i)=>{const a=i*360/6-90+c.v/2;const span=c.v;
+    s+=`<path d="${arc(cx,cy,R,a-span/2,a+span/2)}" fill="none" stroke="${i===0?ACC:i55}" stroke-width="5" pathLength="1" class="draw" style="animation-delay:${i*80}ms"/>`;
+    const[x,y]=pol(cx,cy,R+18,a);
+    s+=T(x,y+3,c.k,{fs:8.5,f:i55,mono:1,a:'middle',cls:'rise',delay:i*80+250,tip:`${c.k} · weight ${c.v}`});});
+  s+=dot(cx,cy,3,INK,{cls:'pop'});
+  return figwrap(w,h,s);}});
+
+/* 11 放射时针图 RADIAL TIMELINE —— 12 时针+扫描指针永续 */
+fig({n:11,t:'钉住月份，扫过一年',sub:'Radial Timeline · 放射时针',note:'12 根时针=12 个月，针上圆点计数；珊瑚扫描指针 20s 一周永续旋转。',
+draw:(w,h)=>{const cx=w/2,cy=h/2,r1=140;
+  const d=[6,9,12,8,14,11,15,9,10,7,12,8];const m=mx(d);let s='';
+  s+=`<circle cx="${cx}" cy="${cy}" r="${r1}" fill="none" stroke="${i08}" stroke-width="1"/>`;
+  for(let i=0;i<60;i++){const a=i*6;const[x1,y1]=pol(cx,cy,r1,a),[x2,y2]=pol(cx,cy,r1+(i%5===0?6:3),a);
+    s+=ln(x1,y1,x2,y2,i18,1);}
+  d.forEach((v,i)=>{const a=i*30;const r=34+v/m*(r1-52);const[x,y]=pol(cx,cy,r,a);
+    const isMax=v===m;
+    s+=ln(cx,cy,pol(cx,cy,r1-6,a)[0],pol(cx,cy,r1-6,a)[1],isMax?ACC:i18,isMax?1.6:1,{d:1,cls:'draw',style:`animation-delay:${i*80}ms`});
+    s+=dot(x,y,3.2,isMax?ACC:INK,{cls:'pop',style:`animation-delay:${200+i*80}ms`,tip:`MONTH ${i+1} · ${v}`});
+    const[lx,ly]=pol(cx,cy,r1+16,a);
+    s+=T(lx,ly+3,['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][i],{fs:7,f:i%3===0?i55:i35,mono:1,a:'middle',cls:'rise',delay:260+i*80});});
+  s+=`<g><line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy-92}" stroke="${ACC}" stroke-width="1.4"/><circle cx="${cx}" cy="${cy-92}" r="3" fill="${ACC}"/>
+    <animateTransform attributeName="transform" type="rotate" from="0 ${cx} ${cy}" to="360 ${cx} ${cy}" dur="20s" repeatCount="indefinite"/></g>`;
+  s+=dot(cx,cy,3.4,INK,{cls:'pop'});
+  return figwrap(w,h,s);}});
+
+/* 12 星域闪烁图 STAR FIELD —— 同心环星点+星座连线 */
+fig({n:12,t:'小数字的闪烁星野',sub:'Star Field · 星域',note:'五重轨道上的星点大小=数值，随机相位闪烁；三颗主星珊瑚并连线成座。',
+draw:(w,h)=>{const cx=w/2,cy=h/2,stars=[];let s='';
+  for(let ring=0;ring<5;ring++){const R=42+ring*24,n=5+ring*3;
+    for(let k=0;k<n;k++){const a=k/n*360+ring*17;const[x,y]=pol(cx,cy,R,a);
+      const v=1+(k*13+ring*7)%9;stars.push({x,y,v,a});
+      s+=dot(x,y,1+v*.32,ring===2&&k%4===1?ACC:INK,{cls:'tw pop',style:`animation-delay:${ring*120+k*40}ms;animation-duration:${2.6+(k%5)*.6}s`,tip:`STAR r${ring+1}-${k+1} · MAG ${v}`});}}
+  const mains=[stars[8],stars[21],stars[35]];
+  s+=`<path d="M${F1(mains[0].x)} ${F1(mains[0].y)}L${F1(mains[1].x)} ${F1(mains[1].y)}L${F1(mains[2].x)} ${F1(mains[2].y)}" fill="none" stroke="${ACC}" stroke-width="1" stroke-dasharray="1 4" pathLength="1" class="draw" style="animation-delay:900ms"/>`;
+  mains.forEach((p,i)=>{s+=`<circle cx="${F1(p.x)}" cy="${F1(p.y)}" r="7" fill="none" stroke="${ACC}" stroke-width="1" class="breathe"/>`;
+    s+=T(p.x,p.y-13,'αβγ'[i],{fs:9,f:ACC,serif:1,a:'middle',cls:'rise',delay:1000+i*120});});
+  s+=T(cx,cy+172,'HIGHLIGHTED TRIAD = TOP-3 VALUES',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:1200});
+  return figwrap(w,h,s);}});
+
+/* ================================================================
+   族 B · 开扇与弧形（FAN & ARC）— 8 型
+   ================================================================ */
+
+/* 13 折扇肋图 FOLDING FAN —— 扇骨从枢轴展开，弧线串起穗点 */
+fig({n:13,t:'扇骨排开，各展其长',sub:'Folding Fan · 折扇肋',note:'扇骨长度=数值，顶端弧线串联扇穗；纸面扇形淡染，最长骨珊瑚。',
+draw:(w,h)=>{const px=w/2,py=h-36;
+  const d=[{k:'I',v:40},{k:'II',v:62},{k:'III',v:85},{k:'IV',v:54},{k:'V',v:73},{k:'VI',v:48},{k:'VII',v:66}];const m=mx(d.map(x=>x.v));
+  const A=150;let s='',tips=[];
+  s+=`<path d="M${F1(pol(px,py,205,-A/2)[0])} ${F1(pol(px,py,205,-A/2)[1])}A205 205 0 0 1 ${F1(pol(px,py,205,A/2)[0])} ${F1(pol(px,py,205,A/2)[1])}L${px} ${py}Z" fill="${i08}" class="fade" style="animation-delay:100ms"/>`;
+  d.forEach((c,i)=>{const a=-A/2+A*i/(d.length-1);const isMax=c.v===m,r=70+c.v/m*135;
+    const[x,y]=pol(px,py,r,a);tips.push([x,y]);
+    s+=ln(px,py,x,y,isMax?ACC:i55,isMax?1.8:1.1,{d:1,cls:'draw',style:`animation-delay:${i*100}ms`,tip:`RIB ${c.k} · ${c.v}`});
+    s+=dot(x,y,3.4,isMax?ACC:INK,{cls:'pop',style:`animation-delay:${250+i*100}ms`,tip:`${c.k} — ${c.v} UNITS`});
+    const[lx,ly]=pol(px,py,r+22,a);
+    s+=T(lx,ly+3,c.v,{fs:8.5,f:isMax?ACC:i55,mono:1,w:isMax?'600':'400',a:'middle',cls:'rise',delay:320+i*100});});
+  s+=`<path d="M${tips.map(p=>F1(p[0])+' '+F1(p[1])).join('L')}" fill="none" stroke="${i35}" stroke-width="1" stroke-dasharray="1 4" pathLength="1" class="draw" style="animation-delay:800ms"/>`;
+  s+=dot(px,py,4,INK,{cls:'pop',tip:'PIVOT = 0'});
+  s+=T(px,py-218,'RIB REACH = VALUE · ARC CHAINS THE TIPS',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:1000});
+  return figwrap(w,h,s);}});
+
+/* 14 扇形射线图 FAN RAYS —— 稠密射线束，点端收口 */
+fig({n:14,t:'十四条细论据',sub:'Fan Rays · 扇形射线',note:'14 条射线按值排序展开 150°，透明度随排名递减；双冠珊瑚。',
+draw:(w,h)=>{const cx=w/2,cy=h-42;
+  const v=[22,35,48,30,56,41,64,52,71,38,58,45,66,28].sort((a,b)=>a-b);const m=mx(v);let s='';
+  v.forEach((val,i)=>{const a=-150+150*i/(v.length-1);const top=val>=m-7;
+    const r=60+val/m*175;const[x,y]=pol(cx,cy,r,a);
+    s+=ln(cx,cy,x,y,top?ACC:inkA(.15+.4*val/m),top?1.5:1,{d:1,cls:'draw',style:`animation-delay:${i*60}ms`,tip:`RAY ${i+1} · ${val}`});
+    s+=dot(x,y,top?3:2,top?ACC:INK,{cls:'pop',style:`animation-delay:${200+i*60}ms`});});
+  s+=dot(cx,cy,3.4,INK,{cls:'pop'});
+  s+=T(cx,cy-16,'0',{fs:8,f:i35,mono:1,a:'middle',cls:'fade',delay:600});
+  s+=T(cx,44,'SORTED ASC · DARKEST = LARGEST',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:900});
+  return figwrap(w,h,s);}});
+
+/* 15 弧阶图 ARC STEPS —— 同心弧逐级步进 */
+fig({n:15,t:'以弧为阶的进程',sub:'Arc Steps · 弧阶',note:'弧长=数值，自 12 点方向顺时针逐级落阶；末阶珊瑚收束。',
+draw:(w,h)=>{const cx=w/2-20,cy=h/2;let s='';const d=[34,58,46,72,64,88];const m=mx(d);let a0=0;
+  s+=`<circle cx="${cx}" cy="${cy}" r="30" fill="none" stroke="${i18}" stroke-width="1"/>`;
+  d.forEach((v,i)=>{const r=44+i*20;const span=v/m*300;
+    s+=`<path d="${arc(cx,cy,r,a0,a0+span)}" fill="none" stroke="${v===m?ACC:i55}" stroke-width="3" pathLength="1" class="draw" style="animation-delay:${i*130}ms" data-tip="STEP ${i+1} · ${v}"/>`;
+    const[ex,ey]=pol(cx,cy,r,a0+span);
+    s+=dot(ex,ey,2.6,v===m?ACC:INK,{cls:'pop',style:`animation-delay:${250+i*130}ms`});
+    const[lx,ly]=pol(cx,cy,r,a0+span+8);
+    s+=T(lx,ly+3,v,{fs:8,f:v===m?ACC:i55,mono:1,a:'middle',cls:'rise',delay:300+i*130});
+    a0+=span*.3;});
+  s+=T(cx,cy+3,d.reduce((p,c)=>p+c,0),{fs:13,f:INK,serif:1,a:'middle',cls:'rise',delay:400});
+  s+=T(cx,cy+14,'SUM',{fs:6.5,f:i35,mono:1,ls:'.2em',a:'middle',cls:'fade',delay:550});
+  return figwrap(w,h,s);}});
+
+/* 16 分段扇图 SEGMENT FAN —— 24 细段，悬停展宽 */
+fig({n:16,t:'二十四份切片',sub:'Segment Fan · 分段扇（hover 展宽）',note:'每段=1/24 份额，段宽透明度=数值；悬停任一段展宽读数。',
+draw:(w,h)=>{const cx=w/2,cy=h/2+10,R=128;let s='';
+  const v=[];for(let i=0;i<24;i++)v.push(20+(i*37%80));const m=mx(v);
+  s+=`<circle cx="${cx}" cy="${cy}" r="34" fill="none" stroke="${i18}" stroke-width="1"/>`;
+  v.forEach((val,i)=>{const a=i*15;
+    s+=`<path d="${arc(cx,cy,R,a+1.5,a+13.5)}" fill="none" stroke="${val===m?ACC:inkA(.2+.55*val/m)}" stroke-width="7" class="seg fade" style="animation-delay:${i*45}ms" data-tip="SEG ${String(i+1).padStart(2,'0')} · ${val}"/>`;});
+  for(let i=0;i<24;i++){const a=i*15;const[x1,y1]=pol(cx,cy,R-12,a),[x2,y2]=pol(cx,cy,R-7,a);
+    s+=ln(x1,y1,x2,y2,i18,1);}
+  s+=T(cx,cy+2,'24',{fs:16,f:INK,serif:1,a:'middle',cls:'rise',delay:500});
+  s+=T(cx,cy+16,'SEGMENTS',{fs:6.5,f:i35,mono:1,ls:'.22em',a:'middle',cls:'fade',delay:700});
+  return figwrap(w,h,s);}});
+
+/* 17 双弧镜像图 ARC MIRROR —— 上下两弧对照两期 */
+fig({n:17,t:'昔在上，今在下',sub:'Arc Mirror · 双弧镜像',note:'上弧=上期、下弧=本期，弧厚=数值；增长段珊瑚。中心轴对照。',
+draw:(w,h)=>{const cx=w/2,cy=h/2;
+  const a=[52,68,44,76,60],b=[64,58,50,84,71];let s='';
+  s+=ln(0,cy,w,cy,i18,1,{cap:'round'});
+  const draw=(arr,dir,color,lab)=>{let acc=0;const tot=arr.reduce((p,c)=>p+c,0);
+    arr.forEach((v,i)=>{const up=b[i]>a[i];const span=v/tot*170;
+      const st=dir<0?(up?color:i35):(up?color:i55);
+      const seg=band(cx,cy,dir<0?86:42,dir<0?110:66,-85+acc,-85+acc+span-1.6);
+      const rr=dir<0?-1:1;
+      const pth=`M${F1(pol(cx,cy,dir<0?110:66,-85+acc)[0])} ${F1(pol(cx,cy,dir<0?110:66,-85+acc)[1])}A${dir<0?110:66} ${dir<0?110:66} 0 0 1 ${F1(pol(cx,cy,dir<0?110:66,-85+acc+span-1.6)[0])} ${F1(pol(cx,cy,dir<0?110:66,-85+acc+span-1.6)[1])}L${F1(pol(cx,cy,dir<0?86:42,-85+acc+span-1.6)[0])} ${F1(pol(cx,cy,dir<0?86:42,-85+acc+span-1.6)[1])}A${dir<0?86:42} ${dir<0?86:42} 0 0 0 ${F1(pol(cx,cy,dir<0?86:42,-85+acc)[0])} ${F1(pol(cx,cy,dir<0?86:42,-85+acc)[1])}Z`;
+      s+=`<path d="${pth}" fill="${up?accdim:i08}" stroke="${st}" stroke-width="1" class="pop" style="animation-delay:${i*120}ms" data-tip="${lab} S${i+1} · ${v}${up?' ↑':''}"/>`;
+      acc+=span;});};
+  draw(a,-1,accA(.5),'2024');draw(b,1,ACC,'2025');
+  s+=T(cx,28,'2024 — UPPER ARC',{fs:8,f:i55,mono:1,ls:'.18em',a:'middle',cls:'rise',delay:200});
+  s+=T(cx,h-16,'2025 — LOWER ARC · CORAL = GROWTH',{fs:8,f:i55,mono:1,ls:'.18em',a:'middle',cls:'rise',delay:400});
+  return figwrap(w,h,s);}});
+
+/* 18 弧刻度扇图 TICK FAN —— 径向条码：弧上刻度密度=值 */
+fig({n:18,t:'弯起来的条码',sub:'Tick Fan · 弧刻度扇',note:'沿弧每 4° 一刻，刻长=该位数值——直条码弯成了扇。峰值区珊瑚。',
+draw:(w,h)=>{const cx=w/2,cy=h/2+6,R=120;let s='';
+  const v=[];for(let i=0;i<45;i++)v.push(8+(i*29%40));const m=mx(v);
+  s+=`<circle cx="${cx}" cy="${cy}" r="${R-52}" fill="none" stroke="${i08}" stroke-width="1" stroke-dasharray="1 5"/>`;
+  s+=`<circle cx="${cx}" cy="${cy}" r="${R+50}" fill="none" stroke="${i08}" stroke-width="1" stroke-dasharray="1 5"/>`;
+  v.forEach((val,i)=>{const a=-90+i*8;const isMax=val>m-3;
+    const[x1,y1]=pol(cx,cy,R-34,a),[x2,y2]=pol(cx,cy,R-34+val,a);
+    s+=ln(x1,y1,x2,y2,isMax?ACC:inkA(.25+.5*val/m),isMax?2:1.2,{cls:'fade',style:`animation-delay:${i*36}ms`,tip:`POS ${i+1} · ${val}`});});
+  s+=T(cx,cy+3,'45',{fs:13,f:INK,serif:1,a:'middle',cls:'rise',delay:600});
+  s+=T(cx,cy+14,'TICKS · 8° APART',{fs:6.5,f:i35,mono:1,ls:'.2em',a:'middle',cls:'fade',delay:750});
+  return figwrap(w,h,s);}});
+
+/* 19 半月弧图 HALF MOON —— 半圆阶梯面积 */
+fig({n:19,t:'十二级台阶，铺成半月',sub:'Half Moon · 半月弧',note:'12 档弧阶自左向右铺满半圆，弧厚=数值，峰值档珊瑚点标。',
+draw:(w,h)=>{const cx=w/2,cy=h-40,R=150;
+  const d=[30,44,38,52,47,60,55,68,62,74,58,80];const m=mx(d);let s='';
+  let p0=pol(cx,cy,R,180),pts=[];
+  s+=ln(cx-R,cy,cx+R,cy,i35,1,{cap:'round'});
+  d.forEach((v,i)=>{const a=180-(i+.5)*(180/d.length);const rr=R*(0.3+0.7*v/m);
+    const[x,y]=pol(cx,cy,rr,a);pts.push([x,y]);
+    s+=ln(cx,cy,x,y,i18,1,{cls:'fade',style:`animation-delay:${i*70}ms`});});
+  s+=`<path d="M${F1(pts[0][0])} ${F1(pts[0][1])}L${pts.map(p=>F1(p[0])+' '+F1(p[1])).join('L')}Z" fill="${i08}" stroke="${INK}" stroke-width="1.1" pathLength="1" class="draw" style="animation-delay:300ms"/>`;
+  d.forEach((v,i)=>{const a=180-(i+.5)*(180/d.length);const rr=R*(0.3+0.7*v/m);
+    const[x,y]=pol(cx,cy,rr,a);const isMax=v===m;
+    s+=dot(x,y,isMax?3.6:2.4,isMax?ACC:INK,{cls:'pop',style:`animation-delay:${500+i*70}ms`,tip:`M${i+1} · ${v}`});
+    if(i%2===0||isMax){const[lx,ly]=pol(cx,cy,R+13,a);
+      s+=T(lx,ly+3,v,{fs:7.5,f:isMax?ACC:i35,mono:1,a:'middle',cls:'rise',delay:560+i*70});}});
+  s+=dot(cx,cy,3,INK,{cls:'pop'});
+  return figwrap(w,h,s);}});
+
+/* ================================================================
+   族 C · 关系图谱（NETWORK & GRAPH）— 10 型
+   ================================================================ */
+
+/* 20 力导向图谱 FORCE GRAPH —— 可拖拽物理模拟 */
+fig({n:20,t:'组织缓缓成形',sub:'Force Graph · 力导向（可拖拽）',note:'斥力+弹簧持续模拟，节点大小=权重，中心枢纽珊瑚。按住节点可拖拽重排。',
+w:560,h:360,
+draw:(w,h)=>{
+  const N=[{k:'CORE',v:100},{k:'OPS',v:70},{k:'FIN',v:60},{k:'R&D',v:64},{k:'MKT',v:58},{k:'HR',v:36},{k:'LEG',v:32},{k:'SUP',v:44},{k:'EUR',v:40},{k:'ASN',v:48},{k:'AMR',v:52},{k:'AFR',v:26}];
+  const E=[[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[3,7],[1,8],[1,9],[4,10],[4,11],[2,7],[5,9],[6,10]];
+  let s='';
+  s+=`<g class="fge"></g><g class="fgn"></g>`;
+  N.forEach((n,i)=>{const a=i/N.length*360,r=120;n.x0=w/2+Math.cos(a)*r;n.y0=h/2+Math.sin(a)*r*.8;});
+  return figwrap(w,h,s);},
+init:el=>{if(el._raf)cancelAnimationFrame(el._raf);
+  const svg=el.querySelector('svg'),w=560,h=360;
+  const N=[{k:'CORE',v:100},{k:'OPS',v:70},{k:'FIN',v:60},{k:'R&D',v:64},{k:'MKT',v:58},{k:'HR',v:36},{k:'LEG',v:32},{k:'SUP',v:44},{k:'EUR',v:40},{k:'ASN',v:48},{k:'AMR',v:52},{k:'AFR',v:26}];
+  const E=[[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[3,7],[1,8],[1,9],[4,10],[4,11],[2,7],[5,9],[6,10]];
+  N.forEach((n,i)=>{const a=i/N.length*360;n.x=w/2+Math.cos(a)*120;n.y=h/2+Math.sin(a)*96;n.vx=0;n.vy=0;});
+  const ge=svg.querySelector('.fge'),gn=svg.querySelector('.fgn');
+  const NS='http://www.w3.org/2000/svg';
+  const lines=E.map(()=>{const l=document.createElementNS(NS,'line');l.setAttribute('stroke',i18);l.setAttribute('stroke-width','1');ge.appendChild(l);return l;});
+  const circles=N.map((n,i)=>{const g=document.createElementNS(NS,'g');
+    const c=document.createElementNS(NS,'circle');const r=4+n.v/100*11;
+    c.setAttribute('r',r);c.setAttribute('fill',i===0?ACC:INK);c.style.cursor='grab';
+    const t=document.createElementNS(NS,'text');t.setAttribute('font-size','8');t.setAttribute('font-family','var(--mono)');t.setAttribute('fill',i55);t.setAttribute('text-anchor','middle');t.textContent=n.k;
+    g.appendChild(c);g.appendChild(t);gn.appendChild(g);
+    g.addEventListener('pointerdown',ev=>{ev.preventDefault();drag={i,dx:n.x-ev.clientX,dy:n.y-ev.clientY};g.setPointerCapture(ev.pointerId);});
+    return g;});
+  let drag=null;
+  svg.addEventListener('pointermove',ev=>{if(drag){const n=N[drag.i];n.x=ev.clientX+drag.dx;n.y=ev.clientY+drag.dy;n.vx=n.vy=0;}});
+  svg.addEventListener('pointerup',()=>drag=null);
+  const tick=()=>{for(let it=0;it<2;it++){
+    for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){const a=N[i],b=N[j];
+      let dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy||1,d=Math.sqrt(d2);
+      const rep=1400/d2;dx/=d;dy/=d;a.vx-=dx*rep;a.vy-=dy*rep;b.vx+=dx*rep;b.vy+=dy*rep;}
+    E.forEach(e=>{const a=N[e[0]],b=N[e[1]];let dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+      const f=(d-90)*.004;dx/=d;dy/=d;a.vx+=dx*f*d;a.vy+=dy*f*d;b.vx-=dx*f*d;b.vy-=dy*f*d;});
+    N.forEach((n,i)=>{if(i===0){n.x+=(w/2-n.x)*.02;n.y+=(h/2-n.y)*.02;}
+      else{n.vx+=(w/2-n.x)*.0006;n.vy+=(h/2-n.y)*.0006;}
+      n.vx*=.86;n.vy*=.86;if(drag&&drag.i===i)return;n.x+=n.vx;n.y+=n.vy;
+      n.x=Math.max(30,Math.min(w-30,n.x));n.y=Math.max(24,Math.min(h-40,n.y));});}};
+  const render=()=>{E.forEach((e,i)=>{const a=N[e[0]],b=N[e[1]];const l=lines[i];
+      l.setAttribute('x1',a.x);l.setAttribute('y1',a.y);l.setAttribute('x2',b.x);l.setAttribute('y2',b.y);});
+    N.forEach((n,i)=>{const g=circles[i];g.setAttribute('transform',`translate(${n.x},${n.y})`);
+      const t=g.querySelector('text');t.setAttribute('y',-(6+n.v/100*11));});};
+  const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const step=()=>{tick();render();if(!RM)el._raf=requestAnimationFrame(step);};
+  for(let k=0;k<50;k++)tick();render();
+  if(!RM)step();
+}});
+
+/* 21 星座连线图 CONSTELLATION —— 近邻连线+闪烁 */
+fig({n:21,t:'近邻松弛相连',sub:'Constellation · 星座连线',note:'点=条目，细线连接近邻（k=2），亮度=数值；星星错相闪烁。',
+draw:(w,h)=>{const pts=[[60,70,5],[150,44,8],[240,90,3],[330,60,7],[430,96,4],[500,50,6],[90,180,4],[200,160,9],[310,190,5],[420,170,7],[510,150,3],[130,260,6],[260,240,8],[390,270,4],[490,240,5]];
+  let s='';const m=mx(pts.map(p=>p[2]));
+  pts.forEach((p,i)=>{pts.forEach((q,j)=>{if(j<=i)return;const dx=p[0]-q[0],dy=p[1]-q[1],d=Math.sqrt(dx*dx+dy*dy);
+    if(d<120)s+=ln(p[0],p[1],q[0],q[1],i08,1,{tip:`LINK ${i}-${j} · D=${F1(d)}`});});});
+  pts.forEach((p,i)=>{const isMax=p[2]===m;
+    s+=dot(p[0],p[1],2+p[2]*.5,isMax?ACC:INK,{cls:'tw pop',style:`animation-delay:${i*90}ms;animation-duration:${2.4+(i%4)*.7}s`,tip:`NODE ${i+1} · MAG ${p[2]}`});
+    if(isMax){s+=`<circle cx="${p[0]}" cy="${p[1]}" r="9" fill="none" stroke="${ACC}" stroke-width="1" class="breathe"/>`;
+      s+=T(p[0],p[1]-14,'PRIMARY',{fs:7,f:ACC,mono:1,ls:'.14em',a:'middle',cls:'rise',delay:800});}});
+  s+=T(w/2,h-14,'EDGES = NEAREST NEIGHBORS UNDER 120PX',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:1000});
+  return figwrap(w,h,s);}});
+
+/* 22 弧弦图 ARC DIAGRAM —— 节点在轴上，弧在上方 */
+fig({n:22,t:'基线之上的握手',sub:'Arc Diagram · 弧弦',note:'节点沿基线等距，弧高=两端距离，弧粗=关系权重；主关系珊瑚流线。',
+draw:(w,h)=>{const y=h-70,n=8,xs=[];for(let i=0;i<n;i++)xs.push(50+i*(w-100)/(n-1));
+  const L=[[0,3,3],[1,4,5],[2,6,4],[3,5,6],[4,7,2],[0,6,1],[1,5,2]];const m=mx(L.map(l=>l[2]));
+  let s='';s+=ln(30,y,w-30,y,i35,1,{cap:'round'});
+  L.forEach((l,li)=>{const[x1,x2]=[xs[l[0]],xs[l[1]]];const ht=30+(Math.abs(x2-x1))*.36;
+    const main=l[2]===m;const p=`M${F1(x1)} ${y}Q${F1((x1+x2)/2)} ${F1(y-ht*2)} ${F1(x2)} ${y}`;
+    s+=`<path d="${p}" fill="none" stroke="${main?ACC:inkA(.15+.5*l[2]/m)}" stroke-width="${main?2:1+l[2]*.4}" pathLength="1" class="draw${main?' flow':''}" style="animation-delay:${li*110}ms" data-tip="${l[0]}↔${l[1]} · W${l[2]}"/>`;});
+  xs.forEach((x,i)=>{s+=dot(x,y,4,INK,{cls:'pop',style:`animation-delay:${i*70}ms`,tip:`NODE ${i+1}`});
+    s+=T(x,y+18,String(i+1).padStart(2,'0'),{fs:8,f:i55,mono:1,a:'middle',cls:'rise',delay:i*70+200});});
+  s+=T(w/2,24,'ARC HEIGHT = SPAN · WIDTH = WEIGHT',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:900});
+  return figwrap(w,h,s);}});
+
+/* 23 蜂巢图 HIVE PLOT —— 三轴定位+跨轴连线 */
+fig({n:23,t:'三轴撑起一张网',sub:'Hive Plot · 蜂巢',note:'节点按所属轴+数值定位，跨轴连线=关系；坐标即含义，无随机性。',
+draw:(w,h)=>{const cx=w/2,cy=h/2+6,R=130;
+  const axes=[{k:'SRC',a:-90},{k:'FLOW',a:30},{k:'SINK',a:150}];
+  const nodes=[{ax:0,r:.3,v:50},{ax:0,r:.7,v:80},{ax:0,r:1,v:65},{ax:1,r:.4,v:55},{ax:1,r:.8,v:90},{ax:2,r:.35,v:45},{ax:2,r:.75,v:70}];
+  const links=[[0,4],[1,3],[1,4],[2,5],[2,6],[0,5],[3,6]];let s='';
+  axes.forEach(ax=>{const[x,y]=pol(cx,cy,26,ax.a),[x2,y2]=pol(cx,cy,R,ax.a);
+    s+=ln(x,y,x2,y2,i18,1,{d:1,cls:'draw',tip:`AXIS ${ax.k}`});
+    const[lx,ly]=pol(cx,cy,R+18,ax.a);
+    s+=T(lx,ly+3,ax.k,{fs:8,f:i55,mono:1,ls:'.12em',a:'middle',cls:'rise',delay:400});});
+  const pos=nodes.map(n=>pol(cx,cy,26+ (R-40)*n.r,axes[n.ax].a));
+  links.forEach((l,li)=>{const[a,b]=[pos[l[0]],pos[l[1]]];
+    s+=`<path d="M${F1(a[0])} ${F1(a[1])}Q${F1(cx)} ${F1(cy)} ${F1(b[0])} ${F1(b[1])}" fill="none" stroke="${li===1?ACC:i35}" stroke-width="${li===1?1.8:1}" pathLength="1" class="draw${li===1?' flow':''}" style="animation-delay:${500+li*90}ms" data-tip="LINK ${l[0]}–${l[1]}" opacity="${li===1?1:.8}"/>`;});
+  nodes.forEach((n,i)=>{const isMax=n.v===90;
+    s+=dot(pos[i][0],pos[i][1],3+n.v/90*4,isMax?ACC:INK,{cls:'pop',style:`animation-delay:${300+i*90}ms`,tip:`N${i} · AX${n.ax+1} · ${n.v}`});});
+  s+=dot(cx,cy,2.6,INK,{cls:'pop'});
+  return figwrap(w,h,s);}});
+
+/* 24 邻接环图 ADJACENCY RING —— 环上节点+弦=邻接 */
+fig({n:24,t:'谁与谁相邻',sub:'Adjacency Ring · 邻接环',note:'10 节点环列，弦透明度=邻接强度；对称高亮对角。',
+draw:(w,h)=>{const cx=w/2,cy=h/2,R=120,n=10;const pos=[];
+  for(let i=0;i<n;i++)pos.push(pol(cx,cy,R,i*36));
+  const A=[[0,2,.5],[0,5,.9],[1,3,.7],[1,6,.4],[2,4,.8],[3,5,.3],[4,6,.6],[5,7,.5],[6,8,.9],[7,9,.4],[8,0,.6],[9,2,.3]];let s='';
+  A.forEach((a,ai)=>{const[p,q]=[pos[a[0]],pos[a[1]]];const main=a[2]>=.85;
+    s+=`<path d="M${F1(p[0])} ${F1(p[1])}Q${F1(cx)} ${F1(cy)} ${F1(q[0])} ${F1(q[1])}" fill="none" stroke="${main?ACC:i35}" stroke-width="${main?1.8:.8+a[2]}" pathLength="1" class="draw" style="animation-delay:${ai*80}ms;opacity:${.4+a[2]*.6}" data-tip="${a[0]}–${a[1]} · ${a[2]*100|0}"/>`;});
+  pos.forEach((p,i)=>{s+=dot(p[0],p[1],4.5,PAPER,{s:INK,sw:1.2,cls:'pop',style:`animation-delay:${i*70}ms`,tip:`ENTITY ${String.fromCharCode(65+i)}`});
+    const[lx,ly]=pol(cx,cy,R+18,i*36);
+    s+=T(lx,ly+3,String.fromCharCode(65+i),{fs:8.5,f:i55,mono:1,a:'middle',cls:'rise',delay:i*70+200});});
+  s+=dot(cx,cy,2.6,INK,{cls:'pop'});
+  return figwrap(w,h,s);}});
+
+/* 25 依赖网图 DEPENDENCY WEB —— 根在左，枝网向右 */
+fig({n:25,t:'万物悬于根上',sub:'Dependency Web · 依赖网',note:'贝塞尔链接的层级依赖网；层级线为发丝线，根珊瑚。',
+draw:(w,h)=>{const layers=[[{k:'CORE',v:100}],[{k:'AUTH',v:70},{k:'BILLING',v:64},{k:'SEARCH',v:58}],[{k:'USER',v:46},{k:'TOKEN',v:40},{k:'LEDGER',v:52},{k:'INDEX',v:44},{k:'CACHE',v:36}],[{k:'DB',v:80},{k:'QUEUE',v:48},{k:'STORE',v:42}]];
+  const xs=[46,190,340,486];const pos={};let s='';
+  layers.forEach((L,li)=>{L.forEach((n,ni)=>{const y=h/2+(ni-(L.length-1)/2)*(li===2?52:64);pos[n.k]={x:xs[li],y,v:n.v};});});
+  const E=[['CORE','AUTH'],['CORE','BILLING'],['CORE','SEARCH'],['AUTH','USER'],['AUTH','TOKEN'],['BILLING','LEDGER'],['SEARCH','INDEX'],['SEARCH','CACHE'],['USER','DB'],['TOKEN','DB'],['LEDGER','QUEUE'],['INDEX','STORE'],['CACHE','STORE']];
+  E.forEach((e,ei)=>{const a=pos[e[0]],b=pos[e[1]];const mxp=(a.x+b.x)/2;
+    s+=`<path d="M${F1(a.x)} ${F1(a.y)}C${F1(mxp)} ${F1(a.y)} ${F1(mxp)} ${F1(b.y)} ${F1(b.x)} ${F1(b.y)}" fill="none" stroke="${e[0]==='CORE'?i35:i18}" stroke-width="1" pathLength="1" class="draw" style="animation-delay:${ei*70}ms" data-tip="${e[0]} → ${e[1]}"${ei===0?'':''}/>`;});
+  Object.entries(pos).forEach(([k,p],i)=>{const isRoot=k==='CORE';
+    s+=dot(p.x,p.y,isRoot?7:3.5+p.v/100*5,isRoot?ACC:INK,{cls:'pop',style:`animation-delay:${200+i*60}ms`,tip:`${k} · W${p.v}`});
+    s+=T(p.x+(isRoot?-14:0),p.y-(isRoot?12:10),k,{fs:7.5,f:isRoot?ACC:i55,mono:1,a:isRoot?'end':'middle',ls:'.06em',cls:'rise',delay:260+i*60});});
+  s+=T(46,h-16,'L0',{fs:7,f:i35,mono:1,ls:'.2em'});s+=T(190,h-16,'L1',{fs:7,f:i35,mono:1,ls:'.2em'});
+  s+=T(340,h-16,'L2',{fs:7,f:i35,mono:1,ls:'.2em'});s+=T(486,h-16,'L3',{fs:7,f:i35,mono:1,ls:'.2em'});
+  return figwrap(w,h,s);}});
+
+/* 26 二部流带图 BIPARTITE RIBBON —— 左右两岸流动 */
+fig({n:26,t:'四源汇入五宿',sub:'Bipartite Ribbon · 二部流带',note:'左侧 4 源、右侧 5 汇，流带粗细=流量，虚线永续示流向。',
+draw:(w,h)=>{const ls=[{k:'WEB',v:80},{k:'APP',v:100},{k:'API',v:60},{k:'CLI',v:34}];
+  const rs=[{k:'AUTH',v:52},{k:'SEARCH',v:74},{k:'CHECKOUT',v:88},{k:'SUPPORT',v:38},{k:'REPORTS',v:22}];
+  const F=[[0,2,44],[1,1,36],[1,2,44],[2,3,30],[2,4,30],[3,4,34],[1,0,20],[0,3,36]];
+  const tot=l=>l.reduce((p,c)=>p+c.v,0);
+  const ly=k=>{let acc=0;const t=tot(ls);const map={};ls.forEach(c=>{map[c.k]=[36+acc/t*(h-90),36+(acc+c.v)/t*(h-90)];acc+=c.v;});return map;};
+  const ry=k=>{let acc=0;const t=tot(rs);const map={};rs.forEach(c=>{map[c.k]=[36+acc/t*(h-90),36+(acc+c.v)/t*(h-90)];acc+=c.v;});return map;};
+  const LM=ly(),RM=ry();const flows={};ls.forEach(s=>flows[s.k]=0);rs.forEach(s=>flows[s.k]=0);
+  let s='';const m=mx(F.map(f=>f[2]));
+  F.forEach((f,fi)=>{const src=ls[f[0]],dst=rs[f[1]];
+    const y1a=LM[src.k][0]+flows[src.k]/tot(ls)*(h-90)*(src.v/tot(ls));
+    const y1b=y1a+f[2]/tot(ls)*(h-90);
+    flows[src.k]+=f[2];
+    const y2a=RM[dst.k][0]+flows[dst.k]/tot(rs)*(h-90)*(dst.v/tot(rs));
+    const y2b=y2a+f[2]/tot(rs)*(h-90);
+    flows[dst.k]+=f[2];
+    const main=f[2]===m;
+    s+=`<path d="M56 ${F1(y1a)}C${w*.35} ${F1(y1a)} ${w*.65} ${F1(y2a)} ${w-56} ${F1(y2a)}L${w-56} ${F1(y2b)}C${w*.65} ${F1(y2b)} ${w*.35} ${F1(y1b)} 56 ${F1(y1b)}Z" fill="${main?accdim:i08}" stroke="${main?ACC:i18}" stroke-width="${main?1.2:1}" class="fade" style="animation-delay:${fi*110}ms" data-tip="${src.k} → ${dst.k} · ${f[2]}"/>`;
+    if(main)s+=`<path d="M56 ${F1((y1a+y1b)/2)}C${w*.35} ${F1((y1a+y1b)/2)} ${w*.65} ${F1((y2a+y2b)/2)} ${w-56} ${F1((y2a+y2b)/2)}" fill="none" stroke="${ACC}" stroke-width="1.2" class="flow"/>`;});
+  ls.forEach((c,i)=>{const y=(LM[c.k][0]+LM[c.k][1])/2;
+    s+=ln(56,LM[c.k][0],56,LM[c.k][1],i35,3,{cap:'butt',cls:'growY',style:`animation-delay:${i*80}ms`,tip:`${c.k} · ${c.v}`});
+    s+=T(46,y+3,c.k,{fs:7.5,f:i55,mono:1,a:'end',cls:'rise',delay:i*80+200});});
+  rs.forEach((c,i)=>{const y=(RM[c.k][0]+RM[c.k][1])/2;
+    s+=ln(w-56,RM[c.k][0],w-56,RM[c.k][1],i35,3,{cap:'butt',cls:'growY',style:`animation-delay:${i*80}ms`,tip:`${c.k} · ${c.v}`});
+    s+=T(w-46,y+3,c.k,{fs:7.5,f:i55,mono:1,a:'start',cls:'rise',delay:i*80+200});});
+  return figwrap(w,h,s);}});
+
+/* 27 邻接点阵图 MATRIX DOTS —— 点阵矩阵，悬停行列提示 */
+fig({n:27,t:'一格一格看整张图',sub:'Matrix Dots · 邻接点阵',note:'8×8 邻接矩阵，点径与透明度=关系强度，对角珊瑚；点阵即矩阵。',
+draw:(w,h)=>{const n=8,c0=64,gap=(w-110-c0)/(n-1);let s='';
+  const V=(i,j)=>(i===j)?1:((i*7+j*13)%9)/9;
+  for(let i=0;i<n;i++){s+=T(46,c0+i*gap+3,String.fromCharCode(65+i),{fs:8,f:i55,mono:1,a:'end',cls:'rise',delay:i*60});
+    s+=T(c0+i*gap,h-30,String.fromCharCode(65+i),{fs:8,f:i55,mono:1,a:'middle',cls:'rise',delay:i*60});}
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){const v=V(i,j);const diag=i===j;
+    s+=dot(c0+j*gap,c0+i*gap,diag?5:2+v*5,diag?ACC:INK,{cls:'pop',style:`animation-delay:${(i+j)*55}ms;opacity:${diag?1:.25+v*.75}`,tip:`${String.fromCharCode(65+i)} × ${String.fromCharCode(65+j)} · ${(v*100|0)}%`});}
+  s+=T(w/2,26,'ROWS = FROM · COLS = TO · DOT = STRENGTH',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:800});
+  return figwrap(w,h,s);}});
+
+/* 28 边捆绑图 EDGE BUNDLING —— 曲线向中轴集束 */
+fig({n:28,t:'线缆束于一线',sub:'Edge Bundling · 边捆绑',note:'左源右汇的贝塞尔边向中央脊柱集束；悬停珊瑚高亮，双主边光点巡航。',
+draw:(w,h)=>{const n=6,Ls=[],Rs=[];let s='';
+  for(let i=0;i<n;i++){Ls.push([40,50+i*(h-110)/(n-1)]);Rs.push([w-40,50+i*(h-110)/(n-1)]);}
+  s+=ln(w/2-4,40,w/2-4,h-50,i08,1,{});s+=ln(w/2+4,40,w/2+4,h-50,i08,1,{});
+  const E=[[0,5,1],[1,3,.6],[2,2,.4],[3,4,.7],[4,1,.5],[5,0,.8],[2,5,.9],[3,0,.3]];const m=mx(E.map(e=>e[2]));
+  E.forEach((e,ei)=>{const[a,b]=[Ls[e[0]],Rs[e[1]]];
+    const main=e[2]===m;const mid1=[w*.5-8-e[2]*20,(a[1]+b[1])/2-10],mid2=[w*.5+8+e[2]*20,(a[1]+b[1])/2+10];
+    const p=`M${a[0]} ${F1(a[1])}C${F1(mid1[0])} ${F1(mid1[1])} ${F1(mid2[0])} ${F1(mid2[1])} ${b[0]} ${F1(b[1])}`;
+    s+=`<path d="${p}" fill="none" stroke="${main?ACC:inkA(.15+.4*e[2])}" stroke-width="${main?2:1}" class="eb fade" style="animation-delay:${ei*90}ms" data-tip="S${e[0]} → T${e[1]} · ${(e[2]*100|0)}%"/>`;
+    if(main){s+=`<circle r="2.6" fill="${ACC}"><animateMotion dur="5s" repeatCount="indefinite" path="${p}"/></circle>`;}
+    s+=dot(a[0],a[1],3.2,INK,{cls:'pop',style:`animation-delay:${ei*90}ms`});
+    s+=dot(b[0],b[1],3.2,INK,{cls:'pop',style:`animation-delay:${ei*90+80}ms`});});
+  for(let i=0;i<n;i++){s+=T(Ls[i][0]-4,Ls[i][1]+3,'S'+(i+1),{fs:7.5,f:i55,mono:1,a:'end',cls:'rise',delay:i*70});
+    s+=T(Rs[i][0]+8,Rs[i][1]+3,'T'+(i+1),{fs:7.5,f:i55,mono:1,a:'start',cls:'rise',delay:i*70});}
+  return figwrap(w,h,s);}});
+
+/* 29 簇生蒲公英图 CLUSTER BLOOM —— 四簇迷你蒲公英 */
+fig({n:29,t:'四簇蒲公英，同一片草甸',sub:'Cluster Bloom · 簇生蒲公英',note:'四簇蒲公英分踞四方，簇径=簇总量，茎数=成员数；最大簇珊瑚，各自摆动。',
+draw:(w,h)=>{const cl=[{k:'NORTH',x:w*.3,y:h*.3,m:8,t:96},{k:'SOUTH',x:w*.7,y:h*.3,m:6,t:74},{k:'EAST',x:w*.3,y:h*.72,m:5,t:62},{k:'WEST',x:w*.7,y:h*.72,m:7,t:88}];
+  const m=mx(cl.map(c=>c.t));let s='';
+  cl.forEach((c,ci)=>{const isMax=c.t===m;
+    for(let i=0;i<c.m;i++){const a=i/c.m*360;const R=16+c.t/m*30*(.6+.4*((i*37)%10)/10);
+      const[x,y]=pol(c.x,c.y,R,a);
+      s+=`<g class="sway" style="animation-delay:${-ci*.9-i*.3}s;animation-duration:${4.2+i*.3}s">`;
+      s+=ln(c.x,c.y,x,y,isMax?accA(.45):i18,1,{cls:'fade',style:`animation-delay:${ci*120+i*50}ms`,tip:`${c.k} · member ${i+1}`});
+      s+=dot(x,y,isMax&&i%3===0?3:2,isMax?ACC:INK,{cls:'pop',style:`animation-delay:${ci*120+80+i*50}ms`});
+      s+='</g>';}
+    s+=dot(c.x,c.y,3,INK,{cls:'pop',style:`animation-delay:${ci*120}ms`});
+    s+=T(c.x,c.y+52,`${c.k} · ${c.m}× · ${c.t}`,{fs:8,f:isMax?ACC:i55,mono:1,a:'middle',cls:'rise',delay:ci*120+400});});
+  s+=ln(w/2,h*.06,w/2,h*.94,i08,1,{d:1,cls:'draw'});
+  s+=ln(w*.08,h/2,w*.92,h/2,i08,1,{d:1,cls:'draw'});
+  return figwrap(w,h,s);}});
+
+/* ================================================================
+   族 D · 流动与粒子（FLOW & PARTICLE）— 8 型
+   ================================================================ */
+
+/* 30 粒子溪流图 PARTICLE STREAM —— 沿正弦谷的光点巡航 */
+fig({n:30,t:'点沿谷底行走',sub:'Particle Stream · 粒子溪流',note:'溪床为数据曲线，7 颗粒子沿谷底永续巡航（速度=流速），峰值珊瑚旗。',
+draw:(w,h)=>{const y0=h/2+30;const d=[30,52,44,66,58,72,48,62,40,54];const m=mx(d);
+  const pts=d.map((v,i)=>[30+i*(w-60)/(d.length-1),y0-v/m*90]);
+  let path=`M${pts[0][0]} ${pts[0][1]}`;
+  for(let i=1;i<pts.length;i++){const[mx1,my1]=[(pts[i-1][0]+pts[i][0])/2,pts[i-1][1]],[mx2,my2]=[(pts[i-1][0]+pts[i][0])/2,pts[i][1]];
+    path+=`C${F1(mx1)} ${F1(my1)} ${F1(mx2)} ${F1(my2)} ${F1(pts[i][0])} ${F1(pts[i][1])}`;}
+  let s='';
+  s+=ln(0,y0+110,w,y0+110,i18,1,{cap:'round'});
+  for(let i=0;i<11;i++)s+=ln(20+i*(w-40)/10,y0+110,20+i*(w-40)/10,y0+116,i35,1);
+  s+=`<path d="${path}" fill="none" stroke="${INK}" stroke-width="1.4" pathLength="1" class="draw" data-tip="STREAM BED = DATA"/>`;
+  pts.forEach((p,i)=>{const isMax=d[i]===m;
+    s+=dot(p[0],p[1],isMax?3.6:2.2,isMax?ACC:INK,{cls:'pop',style:`animation-delay:${400+i*80}ms`,tip:`P${i+1} · ${d[i]}`});
+    if(isMax)s+=ln(p[0],p[1],p[0],p[1]-26,ACC,1,{cls:'fade',style:'animation-delay:700ms'}),s+=T(p[0],p[1]-31,`${d[i]}`,{fs:9,f:ACC,mono:1,w:'600',a:'middle',cls:'rise',delay:800});});
+  for(let k=0;k<7;k++)s+=`<circle r="${k===0?3:2}" fill="${k===0?ACC:i55}"><animateMotion dur="${6+k*.4}s" begin="${-k*.9}s" repeatCount="indefinite" path="${path}"/></circle>`;
+  return figwrap(w,h,s);}});
+
+/* 31 流场图 FLOW FIELD —— 向量场中的粒子漂移（rAF） */
+fig({n:31,t:'几乎可见的风',sub:'Flow Field · 流场',note:'90 颗粒子沿数据驱动向量场漂移，出界重生；密度暗示流速方向。',
+draw:(w,h)=>{let s=`<rect x="0" y="0" width="${w}" height="${h}" fill="none"/>`;
+  s+=`<g class="ffp"></g>`;
+  s+=T(16,24,'FIELD θ(x,y) = sin·cos COMPOSITE',{fs:7.5,f:i35,mono:1,ls:'.16em',cls:'fade',delay:400});
+  return figwrap(w,h,s);},
+init:el=>{if(el._raf)cancelAnimationFrame(el._raf);
+  const svg=el.querySelector('svg'),g=svg.querySelector('.ffp'),w=560,h=350;
+  const NS='http://www.w3.org/2000/svg',n=90,ps=[];
+  const ang=(x,y)=>Math.sin(x*.012)+Math.cos(y*.015)+Math.sin((x+y)*.006);
+  for(let i=0;i<n;i++){const c=document.createElementNS(NS,'circle');
+    c.setAttribute('r',i%13===0?2.2:1.3);c.setAttribute('fill',i%13===0?ACC:i55);
+    g.appendChild(c);ps.push({x:Math.random()*w,y:Math.random()*h,e:c});}
+  const step=()=>{ps.forEach(p=>{const a=ang(p.x,p.y)*1.6;
+    p.x+=Math.cos(a)*.55;p.y+=Math.sin(a)*.55;
+    if(p.x>w+8||p.y>h+8||p.y<-8){p.x=Math.random()*w*.7;p.y=Math.random()*h;}
+    p.e.setAttribute('cx',p.x.toFixed(1));p.e.setAttribute('cy',p.y.toFixed(1));});
+    el._raf=requestAnimationFrame(step);};
+  ps.forEach(p=>{const a=ang(p.x,p.y)*1.6;for(let k=0;k<60;k++){p.x+=Math.cos(a)*.55;p.y+=Math.sin(a)*.55;}p.e.setAttribute('cx',p.x);p.e.setAttribute('cy',p.y);});
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches)step();}});
+
+/* 32 潮汐曲线图 TIDAL CURVE —— 三层波带呼吸 */
+fig({n:32,t:'一岸之上，三层潮',sub:'Tidal Curve · 潮汐曲线',note:'三层潮位=三档口径，发丝线勾边，波峰虚线永续流动。',
+draw:(w,h)=>{const y0=h/2+20;const mk=(amp,ph)=>{let p=`M0 ${F1(y0)}`;
+    for(let x=0;x<=w;x+=8){const y=y0-Math.sin(x/w*Math.PI*2+ph)*amp*(0.6+0.4*Math.sin(x/w*Math.PI));p+=`L${x} ${F1(y)}`;}
+    return p;};
+  let s='';
+  s+=ln(0,y0+66,w,y0+66,i18,1,{cap:'round'});
+  for(let i=0;i<13;i++)s+=ln(20+i*(w-40)/12,y0+66,20+i*(w-40)/12,y0+72,i35,1);
+  const waves=[[38,0,i08,'HIGH'],[26,1.8,i18,'MID'],[15,3.6,i35,'LOW']];
+  waves.forEach((wv,i)=>{
+    s+=`<path d="${mk(wv[0],wv[1])}L${w} ${y0}L0 ${y0}Z" fill="${i===0?accdim:wv[2]}" class="fade" style="animation-delay:${i*180}ms"/>`;
+    s+=`<path d="${mk(wv[0],wv[1])}" fill="none" stroke="${i===0?ACC:INK}" stroke-width="${i===0?1.6:1}" pathLength="1" class="draw" style="animation-delay:${i*180}ms" data-tip="${wv[3]} TIDE · AMP ${wv[0]}"/>`;});
+  s+=`<path d="${mk(38,0)}" fill="none" stroke="${ACC}" stroke-width="1" class="flow" style="animation-delay:1s"/>`;
+  waves.forEach((wv,i)=>s+=T(20+i*64,40+i*16,wv[3],{fs:7.5,f:i===0?ACC:i55,mono:1,ls:'.18em',cls:'rise',delay:i*180+300}));
+  return figwrap(w,h,s);}});
+
+/* 33 蜂群漂移图 BEESWARM —— 横向数值+纵向抖动 */
+fig({n:33,t:'蜂群落定之处',sub:'Beeswarm · 蜂群漂移',note:'每点=一笔交易，横轴=金额；同值堆叠成峰，点群轻微浮动。',
+draw:(w,h)=>{const y=h/2;
+  const gen=[18,22,25,28,30,33,35,38,40,42,45,47,50,52,55,58,60,62,65,68,70,72,75,78,82,85,88,92,96,100,104,110,118,126,140,158,42,48,55,63,72,84,98,115];
+  let s='';
+  s+=ln(24,y+96,w-24,y+96,i35,1,{cap:'round'});
+  for(let v=10;v<=160;v+=25){const x=30+(v-10)/150*(w-60);
+    s+=ln(x,y+96,x,y+102,i35,1);s+=T(x,y+116,v,{fs:8,f:i55,mono:1,a:'middle',cls:'rise',delay:v*2});}
+  const m=160;let col={};
+  gen.forEach((v,i)=>{const x=30+(v-10)/m*(w-60);col[x]=(col[x]||0);
+    const yy=y+80-col[x]*9;col[x]++;
+    const isMax=v===158;
+    s+=dot(x,yy,isMax?3.4:2.6,isMax?ACC:INK,{cls:'bob pop',style:`animation-delay:${i*40}ms;animation-duration:${3+(i%5)*.5}s`,tip:`TX ${i+1} · ${v}`});
+    if(isMax)s+=T(x,yy-12,`${v} — OUTLIER HIGH`,{fs:7.5,f:ACC,mono:1,a:'middle',cls:'rise',delay:1200});});
+  s+=T(w/2,26,'AMOUNT AXIS · VERTICAL STACKING = DENSITY',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:900});
+  return figwrap(w,h,s);}});
+
+/* 34 河曲流带图 RIVER BEND —— 单条流带蜿蜒收窄 */
+fig({n:34,t:'一条河，渐渐收窄',sub:'River Bend · 河曲流带',note:'流带宽度=流量，自左向右逐段收窄；中央虚线流示主流向。',
+draw:(w,h)=>{const y=h/2;const d=[86,72,64,50,42,30];
+  let s='';const seg=(x0,x1,w0,w1)=>{const y0=y-w0/2,y1=y+w0/2,y2=y-w1/2,y3=y+w1/2;
+    return`M${F1(x0)} ${F1(y0)}C${F1((x0+x1)/2)} ${F1(y0)} ${F1((x0+x1)/2)} ${F1(y2)} ${F1(x1)} ${F1(y2)}L${F1(x1)} ${F1(y3)}C${F1((x0+x1)/2)} ${F1(y3)} ${F1((x0+x1)/2)} ${F1(y1)} ${F1(x0)} ${F1(y1)}Z`;};
+  d.forEach((v,i)=>{const x0=24+i*(w-48)/d.length,x1=24+(i+1)*(w-48)/d.length;
+    const w0=(i===0?v:d[i-1])*.62,w1=v*.62;const isLast=i===d.length-1;
+    s+=`<path d="${seg(x0,x1,w0,w1)}" fill="${isLast?accdim:i08}" stroke="${isLast?ACC:i18}" stroke-width="1" class="fade" style="animation-delay:${i*130}ms" data-tip="REACH ${i+1} · FLOW ${v}"/>`;
+    s+=dot(x1,y,2.4,isLast?ACC:i35,{cls:'pop',style:`animation-delay:${i*130+120}ms`});
+    s+=T((x0+x1)/2,y-w0/2-10,v,{fs:8,f:isLast?ACC:i55,mono:1,a:'middle',cls:'rise',delay:i*130+180});});
+  const spine=`M24 ${y}C${w*.2} ${y} ${w*.35} ${y-24} ${w*.5} ${y-16}S${w*.8} ${y+8} ${w-24} ${y-4}`;
+  s+=`<path d="${spine}" fill="none" stroke="${i55}" stroke-width="1" class="flow" style="animation-delay:1s"/>`;
+  s+=T(24,34,'SOURCE · 86',{fs:7.5,f:i55,mono:1,ls:'.14em',cls:'rise',delay:300});
+  s+=T(w-24,34,'MOUTH · 30',{fs:7.5,f:ACC,mono:1,ls:'.14em',a:'end',cls:'rise',delay:600});
+  return figwrap(w,h,s);}});
+
+/* 35 雨滴谱图 RAIN DROPS —— 落雨计数，底部积潭 */
+fig({n:35,t:'按数字落雨',sub:'Rain Drops · 雨滴谱',note:'雨滴自顶飘落（速度=频次），底部水潭宽度=累计量；永续落雨。',
+draw:(w,h)=>{const d=[12,18,9,22,15,26];const m=mx(d);let s='';
+  d.forEach((v,i)=>{const x=64+i*(w-128)/(d.length-1);const n=Math.max(2,Math.round(v/4));
+    s+=T(x,26,['MON','TUE','WED','THU','FRI','SAT'][i],{fs:7.5,f:v===m?ACC:i55,mono:1,a:'middle',cls:'rise',delay:i*100});
+    for(let k=0;k<n;k++){const dl=1.6+((k*31)%18)/10;
+      s+=dot(x+(k%2?4:-4),60+(k*17)%50,1.8,i===3?ACC:i55,0?0:{cls:'fall',style:`animation-delay:${-(k*.9)}s;animation-duration:${dl+1.2}s;--fy:${F1(h-92)}px`,tip:`${['MON','TUE','WED','THU','FRI','SAT'][i]} · ${v}mm`});}
+    const pw=v/m*90;
+    s+=ln(x-pw/2,h-64,x+pw/2,h-64,i35,4,{cap:'round',cls:'growX',style:`animation-delay:${i*100}ms;transform-box:fill-box;transform-origin:center`,tip:`PUDDLE · ${v}mm CUM`});
+    s+=T(x,h-44,v+'mm',{fs:8,f:v===m?ACC:i55,mono:1,a:'middle',cls:'rise',delay:i*100+250});});
+  s+=ln(24,h-28,w-24,h-28,i18,1,{cap:'round'});
+  s+=T(w/2,h-14,'PUDDLE WIDTH = WEEKLY TOTAL',{fs:7,f:i35,mono:1,ls:'.18em',a:'middle',cls:'fade',delay:1000});
+  return figwrap(w,h,s);}});
+
+/* 36 游走线图 WANDER LINES —— 五条随机游走折线 */
+fig({n:36,t:'五次从零出发的游走',sub:'Wander Lines · 游走线',note:'五条随机游走轨迹自左向右铺开，终点圆点=净位置；最远者珊瑚。',
+draw:(w,h)=>{const y0=h/2;let s='';
+  s+=ln(24,y0,w-24,y0,i35,1,{});s+=T(w-20,y0-6,'0',{fs:8,f:i35,mono:1,a:'end',cls:'fade',delay:300});
+  const walks=[];let far=null,farD=0;
+  for(let l=0;l<5;l++){let x=34,y=y0,p=`M${x} ${F1(y)}`;const pts=[[x,y]];
+    for(let k=0;k<26;k++){x+=(w-70)/26;y+=(Math.sin(k*1.7+l*2.4)+Math.sin(k*.6+l))*7;
+      y=Math.max(40,Math.min(h-50,y));p+=`L${F1(x)} ${F1(y)}`;pts.push([x,y]);}
+    walks.push({p,end:[x,y]});if(Math.abs(y-y0)>farD){farD=Math.abs(y-y0);far=l;}}
+  walks.forEach((wk,i)=>{const isFar=i===far;
+    s+=`<path d="${wk.p}" fill="none" stroke="${isFar?ACC:inkA(.2+.15*i)}" stroke-width="${isFar?1.8:1.1}" pathLength="1" class="draw" style="animation-delay:${i*160}ms" data-tip="WALK ${i+1} · NET ${F1(wk.end[1]-y0>0?'+':'')}${F1(wk.end[1]-y0)}" stroke-linejoin="round"/>`;
+    s+=dot(wk.end[0],wk.end[1],isFar?4:2.8,isFar?ACC:INK,{cls:'pop',style:`animation-delay:${i*160+700}ms`,tip:`END ${i+1} · ${F1(wk.end[1]-y0)}`});});
+  s+=T(34,30,'START',{fs:7.5,f:i35,mono:1,ls:'.2em',cls:'fade',delay:600});
+  s+=T(w/2,h-12,'26 STEPS · ±SINE WANDER · FARTHEST IN CORAL',{fs:7,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:1100});
+  return figwrap(w,h,s);}});
+
+/* 37 脉冲列图 PULSE TRAIN —— 心电式脉冲+扫描光点 */
+fig({n:37,t:'值得再读一遍的尖峰',sub:'Pulse Train · 脉冲列',note:'基线上的脉冲列（高度=事件强度），扫描光点 6s 一轮巡航全场。',
+draw:(w,h)=>{const y=h-80;const ev=[12,30,8,45,22,66,15,38,8,52,28,74,18,42,10,34];
+  const m=mx(ev);let p=`M24 ${y}`;const anchors=[];
+  ev.forEach((v,i)=>{const x=24+(i+.5)*(w-48)/ev.length;
+    p+=`L${F1(x-9)} ${y}L${F1(x)} ${F1(y-14-v*1.6)}L${F1(x+9)} ${y}`;anchors.push([x,y-14-v*1.6,v,i]);});
+  p+=`L${w-24} ${y}`;
+  let s='';
+  s+=ln(24,y+16,w-24,y+16,i35,1,{cap:'round'});
+  ev.forEach((v,i)=>{const x=24+(i+.5)*(w-48)/ev.length;s+=ln(x,y+16,x,y+21,i35,1);});
+  s+=`<path d="${p}" fill="none" stroke="${INK}" stroke-width="1.3" pathLength="1" class="draw" data-tip="PULSE TRAIN"/>`;
+  anchors.forEach(a=>{const isMax=a[2]===m;
+    if(isMax||a[2]>m*.7)s+=dot(a[0],a[1],isMax?3.4:2.4,isMax?ACC:INK,{cls:'breathe pop',style:'animation-delay:900ms',tip:`EVENT ${a[3]+1} · ${a[2]}`});
+    if(isMax)s+=T(a[0],a[1]-12,`PEAK ${a[2]}`,{fs:7.5,f:ACC,mono:1,a:'middle',cls:'rise',delay:1000});});
+  s+=`<circle r="3" fill="${ACC}"><animateMotion dur="6s" repeatCount="indefinite" path="${p}"/></circle>`;
+  s+=T(24,30,'EVENT STREAM · SCAN 6S/CYCLE',{fs:7.5,f:i35,mono:1,ls:'.18em',cls:'fade',delay:700});
+  return figwrap(w,h,s);}});
+
+/* ================================================================
+   族 E · 时序与形态（TIME & FORM）— 7 型
+   ================================================================ */
+
+/* 38 螺旋时间图 SPIRAL TIME —— 阿基米德螺线上的 16 点 */
+fig({n:38,t:'螺线上的十六拍',sub:'Spiral Time · 螺旋时间',note:'时点沿螺线外扩（内早外晚），点径=数值；最大时刻珊瑚环标。',
+draw:(w,h)=>{const cx=w/2,cy=h/2;const d=[22,35,28,44,31,52,38,26,48,33,58,41,29,46,36,61];const m=mx(d);
+  let sp='',pts=[];
+  for(let a=0;a<=16;a+=.1){const r=26+a*10.5;const[x,y]=pol(cx,cy,r,a*57.3%360===0?0:a*(360/6.283));
+    pts.push([x,y,a]);}
+  pts=pts.filter((p,i)=>i%2===0);
+  sp=`M${F1(pts[0][0])} ${F1(pts[0][1])}`;
+  pts.slice(1).forEach(p=>sp+=`L${F1(p[0])} ${F1(p[1])}`);
+  let s=`<path d="${sp}" fill="none" stroke="${i35}" stroke-width="1" pathLength="1" class="draw" style="animation-duration:1.4s"/>`;
+  d.forEach((v,i)=>{const a=(i+1)*(360/6.283);const r=26+(i+1)*10.5;const[x,y]=pol(cx,cy,r,a*(6.283/360)*(6.283/6.283));
+    const ang=(i+1)*57.3;const[px,py]=pol(cx,cy,26+(ang/57.3)*10.5,ang%360);
+    const isMax=v===m;
+    s+=dot(px,py,isMax?4:2.6+v/m*1.6,isMax?ACC:INK,{cls:'pop',style:`animation-delay:${300+i*90}ms`,tip:`T${i+1} · ${v}`});
+    if(isMax)s+=`<circle cx="${F1(px)}" cy="${F1(py)}" r="9" fill="none" stroke="${ACC}" stroke-width="1" class="breathe"/>`;
+    if(i%4===0)s+=T(px,py-11,`T${i+1}`,{fs:7,f:i55,mono:1,a:'middle',cls:'rise',delay:400+i*90});});
+  s+=dot(cx,cy,2.6,INK,{cls:'pop'});
+  s+=T(cx,cy+172,'INNER = EARLIEST · DOT = VALUE',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:1300});
+  return figwrap(w,h,s);}});
+
+/* 39 日历点阵图 CALENDAR DOTS —— 7×6 日历点阵 */
+fig({n:39,t:'六周，逐日成点',sub:'Calendar Dots · 日历点阵',note:'每点=一天，三级墨深=三档强度，峰值日珊瑚；悬停读日期。',
+draw:(w,h)=>{const x0=70,y0=56,gx=64,gy=42;let s='';
+  ['MON','TUE','WED','THU','FRI','SAT','SUN'].forEach((d,i)=>s+=T(x0+i*gx,y0-16,d,{fs:7,f:i35,mono:1,ls:'.14em',a:'middle',cls:'rise',delay:i*60}));
+  const v=[];for(let i=0;i<42;i++)v.push((i*37+13)%10);const m=mx(v);
+  v.forEach((val,i)=>{const wx=i%7,wy=(i/7)|0;const x=x0+wx*gx,y=y0+wy*gy;
+    const lv=val<3?i35:(val<7?i70:INK);const isMax=val===m;
+    s+=dot(x,y,isMax?5:(val<3?3:4),isMax?ACC:lv,{cls:'pop',style:`animation-delay:${i*36}ms`,tip:`DAY ${i+1} · ${val}`});
+    if(isMax)s+=`<circle cx="${x}" cy="${y}" r="9.5" fill="none" stroke="${ACC}" stroke-width="1" class="breathe"/>`;
+    if(i%7===0)s+=T(x0-26,y+3,'W'+(((i/7)|0)+1),{fs:7,f:i35,mono:1,a:'middle',cls:'rise',delay:i*36});});
+  s+=T(x0,h-22,'○ LIGHT <3 · ● MID · ⬤ HIGH · CORAL = PEAK DAY',{fs:7,f:i35,mono:1,ls:'.12em',cls:'fade',delay:900});
+  return figwrap(w,h,s);}});
+
+/* 40 地震仪扫描图 SEISMOGRAPH —— 抖动线+扫描点 */
+fig({n:40,t:'静，静，而后发声',sub:'Seismograph · 地震仪',note:'平稳基线上的两次事件抖动，扫描光点沿迹巡航；主震珊瑚标。',
+draw:(w,h)=>{const y=h/2+20;const d=[0,0,1,0,0,2,0,0,0,0,3,7,9,6,2,0,0,1,0,0,0,4,8,11,13,9,5,2,0,0,1,0];
+  let p=`M20 ${y}`;const seg=[];
+  d.forEach((v,i)=>{const x=20+i*(w-40)/(d.length-1);const yy=y-v*8-(v?Math.sin(i*9)*2:0);
+    p+=`L${F1(x)} ${F1(yy)}`;seg.push([x,yy,v]);});
+  let s='';
+  s+=ln(20,y+40,w-20,y+40,i18,1,{cap:'round'});
+  for(let i=0;i<9;i++){const x=20+i*(w-40)/8;s+=ln(x,y+40,x,y+46,i35,1);s+=T(x,y+60,`${i*4}h`,{fs:7,f:i35,mono:1,a:'middle',cls:'rise',delay:i*60});}
+  s+=`<path d="${p}" fill="none" stroke="${INK}" stroke-width="1.2" pathLength="1" class="draw" style="animation-duration:1.2s"/>`;
+  const peaks=[[seg[13][0],seg[13][1],9],[seg[24][0],seg[24][1],13]];
+  const mp=peaks[1];
+  s+=dot(mp[0],mp[1],3.6,ACC,{cls:'breathe pop',style:'animation-delay:1s',tip:`MAIN SHOCK · M${mp[2]}`});
+  s+=T(mp[0],mp[1]-14,`M${mp[2]}`,{fs:8,f:ACC,mono:1,w:'600',a:'middle',cls:'rise',delay:1100});
+  s+=dot(peaks[0][0],peaks[0][1],2.8,INK,{cls:'pop',style:'animation-delay:1s',tip:'AFTERSHOCK · M9'});
+  s+=`<circle r="2.4" fill="${i55}"><animateMotion dur="7s" repeatCount="indefinite" path="${p}"/></circle>`;
+  s+=T(20,30,'MAGNITUDE TRACE · 32 SAMPLES / 36H',{fs:7.5,f:i35,mono:1,ls:'.16em',cls:'fade',delay:700});
+  return figwrap(w,h,s);}});
+
+/* 41 地平线条带图 HORIZON STRIP —— 中轴上下镜像面积 */
+fig({n:41,t:'线之上，线之下',sub:'Horizon Strip · 地平线条带',note:'正值向上、负值向下镜像铺层，层深=绝对值；深谷珊瑚。',
+draw:(w,h)=>{const y=h/2;const d=[12,-8,18,-15,22,-6,26,-19,16,-11,24,-21,14,-9,20];
+  let s='';s+=ln(20,y,w-20,y,i35,1,{});s+=T(w-16,y-6,'0',{fs:8,f:i35,mono:1,a:'end',cls:'fade',delay:300});
+  const up=[],dn=[];d.forEach((v,i)=>{const x=20+i*(w-40)/(d.length-1);(v>=0?up:dn).push([x,v]);});
+  const area=(pts,dir)=>{if(!pts.length)return'';let p=`M${F1(pts[0][0])} ${y}`;
+    pts.forEach(pt=>p+=`L${F1(pt[0])} ${F1(y-dir*Math.abs(pt[1])*3.4)}`);
+    p+=`L${F1(pts[pts.length-1][0])} ${y}Z`;return p;};
+  const upSeg=[],dnSeg=[];let run=[];
+  d.forEach((v,i)=>{const x=20+i*(w-40)/(d.length-1);
+    if(v>=0)run.push([x,v]);else{if(run.length)upSeg.push(run);run=[];}});
+  if(run.length)upSeg.push(run);run=[];
+  d.forEach((v,i)=>{const x=20+i*(w-40)/(d.length-1);
+    if(v<0)run.push([x,v]);else{if(run.length)dnSeg.push(run);run=[];}});
+  if(run.length)dnSeg.push(run);
+  upSeg.forEach((sg,i)=>{const deep=mx(sg.map(p=>p[1]))>=20;
+    s+=`<path d="${area(sg,1)}" fill="${deep?accdim:i08}" stroke="${INK}" stroke-width="1" pathLength="1" class="draw" style="animation-delay:${i*140}ms" data-tip="GAIN RUN"/>`;
+    s+=dot(sg[sg.length-1][0],y-mx(sg.map(p=>p[1]))*3.4-4,2.4,INK,{cls:'pop',style:`animation-delay:${i*140+400}ms`});});
+  dnSeg.forEach((sg,i)=>{const deep=mx(sg.map(p=>-p[1]))>=19;
+    s+=`<path d="${area(sg,-1)}" fill="${deep?accA(.2):inkA(.14)}" stroke="${deep?ACC:i55}" stroke-width="${deep?1.4:1}" pathLength="1" class="draw" style="animation-delay:${300+i*140}ms" data-tip="LOSS RUN"/>`;
+    if(deep)s+=T(sg[Math.floor(sg.length/2)][0],y+mx(sg.map(p=>-p[1]))*3.4+14,'DEEP LOSS',{fs:7,f:ACC,mono:1,a:'middle',cls:'rise',delay:900});});
+  s+=T(20,28,'GAIN ↑ / LOSS ↓ · DEPTH = MAGNITUDE',{fs:7.5,f:i35,mono:1,ls:'.16em',cls:'fade',delay:800});
+  return figwrap(w,h,s);}});
+
+/* 42 阶梯园图 STEP GARDEN —— 台阶+园钉 */
+fig({n:42,t:'拾级而上',sub:'Step Garden · 阶梯园',note:'阶梯线记录逐期变化，每级台阶钉一枚点；上行台阶珊瑚。',
+draw:(w,h)=>{const y0=h-80;const d=[20,28,24,34,30,42,38,50,46,56];const m=mx(d);let s='';
+  s+=ln(24,y0+18,w-24,y0+18,i35,1,{cap:'round'});
+  d.forEach((v,i)=>{const x=24+i*(w-48)/(d.length-1);s+=ln(x,y0+18,x,y0+24,i35,1);
+    s+=T(x,y0+38,i+1,{fs:7.5,f:i35,mono:1,a:'middle',cls:'rise',delay:i*80});});
+  let p=`M24 ${y0-d[0]*2.6}`;d.forEach((v,i)=>{const x=24+(i+.5)*(w-48)/d.length;if(i<d.length)p+=`L${F1(x)} ${F1(y0-d[i]*2.6)}L${F1(x)} ${F1(y0-d[i+1]*2.6)}`;});
+  p+=`L${w-24} ${y0-d[d.length-1]*2.6}`;
+  s+=`<path d="${p}" fill="none" stroke="${INK}" stroke-width="1.3" pathLength="1" class="draw" style="animation-duration:1.1s"/>`;
+  d.forEach((v,i)=>{const x=24+i*(w-48)/(d.length-1);const up=i>0&&v>d[i-1];const isMax=v===m;
+    s+=dot(x,y0-v*2.6,isMax?4:3,isMax?ACC:(up?ACC:INK),{cls:'pop',style:`animation-delay:${300+i*90}ms`,tip:`P${i+1} · ${v}${up?' ↑':''}`});
+    if(isMax)s+=T(x,y0-v*2.6-12,`PEAK ${v}`,{fs:7.5,f:ACC,mono:1,a:'middle',cls:'rise',delay:900});});
+  s+=T(24,30,'PERIOD STEPS · CORAL DOT = RISING STEP',{fs:7.5,f:i35,mono:1,ls:'.16em',cls:'fade',delay:800});
+  return figwrap(w,h,s);}});
+
+/* 43 相位钟图 PHASE CLOCK —— 三针异速永续旋转 */
+fig({n:43,t:'三重周期，一座钟面',sub:'Phase Clock · 相位钟',note:'时针=日/周/月三重周期，各自匀速旋转（8s/30s/90s）；刻度即钟面。',
+draw:(w,h)=>{const cx=w/2,cy=h/2,R=120;let s='';
+  s+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${i18}" stroke-width="1"/>`;
+  for(let i=0;i<24;i++){const a=i*15;const[x1,y1]=pol(cx,cy,R,a),[x2,y2]=pol(cx,cy,R-(i%6===0?10:5),a);
+    s+=ln(x1,y1,x2,y2,i%6===0?i35:i18,1,{tip:`${i}H`});}
+  for(let i=0;i<24;i+=6){const[lx,ly]=pol(cx,cy,R+16,i*15);
+    s+=T(lx,ly+3,String(i).padStart(2,'0'),{fs:8,f:i55,mono:1,a:'middle',cls:'rise',delay:i*40});}
+  const hands=[[86,8,ACC,'DAY'],[66,30,INK,'WEEK'],[46,90,i55,'MONTH']];
+  hands.forEach((hd,i)=>{
+    s+=`<g><line x1="${cx}" y1="${cy}" x2="${cx}" y2="${F1(cy-hd[0])}" stroke="${hd[2]}" stroke-width="${i===0?2:1.2}" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${F1(cy-hd[0])}" r="${i===0?3.4:2.6}" fill="${hd[2]}" class="tw"/>
+    <animateTransform attributeName="transform" type="rotate" from="0 ${cx} ${cy}" to="360 ${cx} ${cy}" dur="${hd[1]*10}s" repeatCount="indefinite"/></g>`;});
+  s+=dot(cx,cy,3.6,INK,{cls:'pop'});
+  hands.forEach((hd,i)=>{s+=T(cx+30+i*74,cy+R+34,`${hd[3]} · ${hd[1]}S/REV`,{fs:7,f:hd[2]===ACC?ACC:i55,mono:1,ls:'.12em',cls:'fade',delay:600+i*150});});
+  return figwrap(w,h,s);}});
+
+/* 44 行星计数图 ORBIT COUNT —— 同心轨道上运行的计数点群 */
+fig({n:44,t:'自转自数的轨道',sub:'Orbit Count · 行星计数',note:'四条轨道各载若干计数点匀速公转（速度=轨道值），点数即读数。',
+draw:(w,h)=>{const cx=w/2,cy=h/2;const orbits=[{k:'DAILY',n:12,s:9,r:46},{k:'WEEKLY',n:7,s:20,r:76},{k:'MONTHLY',n:4,s:34,r:106},{k:'YEARLY',n:2,s:55,r:136}];let s='';
+  orbits.forEach((o,oi)=>{const isTop=o.n===12;
+    s+=`<circle cx="${cx}" cy="${cy}" r="${o.r}" fill="none" stroke="${isTop?i35:i08}" stroke-width="1"${isTop?'':' stroke-dasharray="1 5"'}/>`;
+    s+=`<g>`;
+    for(let k=0;k<o.n;k++){const a=k/o.n*360;const[x,y]=pol(cx,cy,o.r,a);
+      s+=dot(x,y,isTop&&k%3===0?3:2.2,isTop&&k%3===0?ACC:INK,{tip:`${o.k} #${k+1}`});}
+    s+=`<animateTransform attributeName="transform" type="rotate" from="0 ${cx} ${cy}" to="360 ${cx} ${cy}" dur="${o.s}s" repeatCount="indefinite"/></g>`;
+    s+=T(cx+o.r*Math.cos(-.7),cy+o.r*Math.sin(-.7)-8,`${o.k} ×${o.n}`,{fs:7,f:i55,mono:1,ls:'.1em',cls:'rise',delay:oi*140});});
+  s+=dot(cx,cy,3.4,INK,{cls:'pop',tip:'CENTER OF MASS'});
+  s+=T(cx,cy+166,'DOTS PER ORBIT = COUNT · SPEED = PERIOD',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:1100});
+  return figwrap(w,h,s);}});
+
+/* ================================================================
+   族 F · 分布与对比（DISTRIBUTION & COMPARE）— 8 型
+   ================================================================ */
+
+/* 45 华夫点阵图 DOT MATRIX —— 100 格逐格点亮 */
+fig({n:45,t:'百格逐一点亮',sub:'Dot Matrix · 华夫点阵',note:'10×10=100 单位，按序点亮（pop 级联）；末段 18% 珊瑚即目标占比。',
+draw:(w,h)=>{const c0=54,g=44,n=100,coral=18;let s='';
+  for(let i=0;i<n;i++){const gx=i%10,gy=(i/10)|0;const inCoral=i>=n-coral;
+    s+=dot(c0+gx*g,c0+gy*g,inCoral?5:4.2,inCoral?ACC:i18,{cls:'pop',style:`animation-delay:${i*22}ms`,tip:`UNIT ${i+1}/100${inCoral?' · TARGET':''}`});}
+  s+=T(c0-30,c0+22,'0',{fs:8,f:i35,mono:1,a:'end',cls:'fade',delay:800});
+  s+=T(c0+9*g+30,c0+9*g+4,'100',{fs:8,f:i35,mono:1,a:'start',cls:'fade',delay:800});
+  s+=T(c0,c0-24,'10 × 10 · EACH DOT = 1 UNIT',{fs:7.5,f:i35,mono:1,ls:'.16em',cls:'fade',delay:900});
+  s+=T(c0+9*g,c0+9*g+34,`CORAL = LAST ${coral}%`,{fs:8,f:ACC,mono:1,ls:'.14em',a:'middle',cls:'rise',delay:1400});
+  return figwrap(w,h,s);}});
+
+/* 46 山脊线图 RIDGE LINES —— 五重密度曲线叠嶂 */
+fig({n:46,t:'安静变量的山脊',sub:'Ridge Lines · 山脊线',note:'五组分布各自成岭、纵向错叠；最陡岭珊瑚勾边。',
+draw:(w,h)=>{const rows=[{k:'MON',mu:.24,amp:.9},{k:'TUE',mu:.34,amp:1.15},{k:'WED',mu:.5,amp:.7},{k:'THU',mu:.62,amp:1.3},{k:'FRI',mu:.78,amp:1}];
+  const y0=h-64,dh=44;let s='';
+  rows.forEach((r,ri)=>{const base=y0-ri*dh;let p='';
+    for(let x=0;x<=w-80;x+=6){const t=x/(w-80);const g=Math.exp(-Math.pow((t-r.mu)/.13,2))*r.amp;
+      p+=(x?'L':'M')+F1(x+40)+' '+F1(base-g*70);}
+    const isSteep=r.amp>=1.3;
+    s+=`<path d="${p}L${w-40} ${base}L40 ${base}Z" fill="${isSteep?accdim:i08}" class="fade" style="animation-delay:${ri*150}ms"/>`;
+    s+=`<path d="${p}" fill="none" stroke="${isSteep?ACC:INK}" stroke-width="${isSteep?1.6:1}" pathLength="1" class="draw" style="animation-delay:${ri*150}ms" data-tip="${r.k} · μ=${r.mu.toFixed(2)} σAMP ${r.amp}"/>`;
+    s+=T(30,base+3,r.k,{fs:7.5,f:isSteep?ACC:i55,mono:1,a:'end',cls:'rise',delay:ri*150+300});
+    const px=40+r.mu*(w-80);s+=dot(px,base-r.amp*70,2.4,isSteep?ACC:INK,{cls:'pop',style:`animation-delay:${ri*150+350}ms`});});
+  s+=ln(40,y0+16,w-40,y0+16,i18,1,{cap:'round'});
+  s+=T(w/2,26,'GAUSSIAN RIDGES · STEEPEST IN CORAL',{fs:7.5,f:i35,mono:1,ls:'.16em',a:'middle',cls:'fade',delay:900});
+  return figwrap(w,h,s);}});
+
+/* 47 镜像对比图 MIRROR BARS —— 中轴上下对生条 */
+fig({n:47,t:'两条数列，一根脊柱',sub:'Mirror Bars · 镜像对比',note:'上=本期、下=上期，成对生长；差值列右侧等宽数字。',
+draw:(w,h)=>{const y=h/2;const now=[52,68,44,76,60],old=[44,70,52,64,58];let s='';
+  s+=ln(30,y,w-30,y,i35,1,{cap:'round'});
+  const ks=['ALPHA','BETA','GAMMA','DELTA','EPS'];
+  for(let i=0;i<5;i++){const x=76+i*88;const bw=30;
+    const up=now[i]>old[i];const mn=mx(now),isMax=now[i]===mn;
+    s+=`<rect x="${x-bw/2}" y="${F1(y-now[i]*1.5-2)}" width="${bw}" height="${F1(now[i]*1.5)}" fill="${up?accdim:i08}" stroke="${up?ACC:i55}" stroke-width="1" class="growYd" style="animation-delay:${i*120}ms" data-tip="2025 ${ks[i]} · ${now[i]}"/>`;
+    s+=`<rect x="${x-bw/2}" y="${y+2}" width="${bw}" height="${F1(old[i]*1.5)}" fill="${i08}" stroke="${i35}" stroke-width="1" class="growY" style="animation-delay:${i*120}ms" data-tip="2024 ${ks[i]} · ${old[i]}"/>`;
+    const d=now[i]-old[i];
+    s+=T(x,y-now[i]*1.5-10,now[i],{fs:8,f:isMax?ACC:i70,mono:1,w:isMax?'600':'400',a:'middle',cls:'rise',delay:i*120+250});
+    s+=T(x,y+old[i]*1.5+16,old[i],{fs:8,f:i55,mono:1,a:'middle',cls:'rise',delay:i*120+250});
+    s+=T(x,y+old[i]*1.5+30,`${d>0?'+':''}${d}`,{fs:7.5,f:d>0?ACC:i55,mono:1,a:'middle',cls:'rise',delay:i*120+350});
+    s+=T(x,h-10,ks[i],{fs:6.5,f:i35,mono:1,ls:'.1em',a:'middle',cls:'fade',delay:i*120+400});}
+  s+=T(30,28,'2025 ↑',{fs:8,f:ACC,mono:1,ls:'.14em',cls:'rise',delay:200});
+  s+=T(30,h-46,'2024 ↓',{fs:8,f:i55,mono:1,ls:'.14em',cls:'rise',delay:200});
+  return figwrap(w,h,s);}});
+
+/* 48 凹凸竞速图 BUMP RACE —— 排位折线 */
+fig({n:48,t:'六轮之内，排名起落',sub:'Bump Race · 凹凸竞速',note:'五条排位线在六轮中交换座次；冠军线珊瑚加粗。',
+draw:(w,h)=>{const n=5,m=6;const rks=[[1,2,3,2,1,1],[2,1,2,3,2,3],[3,4,1,4,3,2],[4,3,4,1,4,4],[5,5,5,5,5,5]];
+  const x0=70,x1=w-80,y0=52,y1=h-72;let s='';
+  for(let r=1;r<=n;r++)s+=ln(x0,y0+(r-1)*(y1-y0)/(n-1),x1,y0+(r-1)*(y1-y0)/(n-1),i08,1,{tip:`RANK ${r}`});
+  const ks=['ALPHA','BETA','GAMMA','DELTA','OMEGA'];
+  rks.forEach((rk,ci)=>{const isWin=rk[m-1]===1;
+    let p='';rk.forEach((r,mi)=>{const x=x0+mi*(x1-x0)/(m-1),y=y0+(r-1)*(y1-y0)/(n-1);
+      p+=(mi?'L':'M')+F1(x)+' '+F1(y);});
+    s+=`<path d="${p}" fill="none" stroke="${isWin?ACC:inkA(.2+.14*ci)}" stroke-width="${isWin?2:1.2}" pathLength="1" class="draw" style="animation-delay:${ci*150}ms" stroke-linejoin="round" data-tip="${ks[ci]} · FINAL RANK ${rk[m-1]}"/>`;
+    rk.forEach((r,mi)=>{const x=x0+mi*(x1-x0)/(m-1),y=y0+(r-1)*(y1-y0)/(n-1);
+      if(mi%2===0||mi===m-1)s+=dot(x,y,isWin?3.4:2.4,isWin?ACC:INK,{cls:'pop',style:`animation-delay:${ci*150+mi*70}ms`,tip:`${ks[ci]} R${mi+1} · #${r}`});});
+    const ey=y0+(rk[m-1]-1)*(y1-y0)/(n-1);
+    s+=T(x1+10,ey+3,ks[ci],{fs:7.5,f:isWin?ACC:i55,mono:1,cls:'rise',delay:ci*150+500});});
+  for(let mi=0;mi<m;mi++){const x=x0+mi*(x1-x0)/(m-1);
+    s+=T(x,h-40,`R${mi+1}`,{fs:8,f:i55,mono:1,a:'middle',cls:'rise',delay:mi*100});}
+  s+=T(x0-40,h-40,'ROUND',{fs:7,f:i35,mono:1,ls:'.16em',a:'end',cls:'fade',delay:700});
+  return figwrap(w,h,s);}});
+
+/* 49 点小提琴图 DOT VIOLIN —— 逐点堆叠的密度 */
+fig({n:49,t:'以点诉说密度',sub:'Dot Violin · 点小提琴',note:'每类别按数值纵向逐点堆叠成对称"琴身"；最宽类别珊瑚。',
+draw:(w,h)=>{const cats=[{k:'A',v:[12,14,15,15,16,18,18,19,21,24,28]},{k:'B',v:[20,22,23,24,24,25,26,27,28]},{k:'C',v:[10,12,14,16,18,20,22,24,26,28,30,32]},{k:'D',v:[16,18,19,20,20,21,22,23]},{k:'E',v:[24,26,28,30,32,34,36]}];
+  const y0=h-70,yt=40;const mv=36;let s='';
+  s+=ln(30,y0+14,w-30,y0+14,i35,1,{cap:'round'});
+  for(let v=10;v<=36;v+=10){const yy=y0-(v-8)/(mv-8)*(y0-yt);
+    s+=ln(30,yy,w-30,yy,i08,1,{});s+=T(24,yy+3,v,{fs:8,f:i55,mono:1,a:'end',cls:'rise',delay:v*8});}
+  cats.forEach((c,ci)=>{const cxp=76+ci*(w-140)/(cats.length-1);const isFat=c.v.length===12;
+    const cnt={};c.v.forEach(v=>cnt[v]=(cnt[v]||0)+1);
+    const drawn={};
+    c.v.forEach((v,i)=>{const yy=y0-(v-8)/(mv-8)*(y0-yt);const side=drawn[v]||0;drawn[v]=side+1;
+      const off=(side%2?1:-1)*Math.ceil(side/2)*7;
+      s+=dot(cxp+off,yy,2.8,isFat?ACC:INK,{cls:'pop',style:`animation-delay:${ci*130+i*55}ms`,tip:`${c.k} · ${v}`});});
+    s+=T(cxp,y0+32,c.k,{fs:8,f:isFat?ACC:i55,mono:1,a:'middle',cls:'rise',delay:ci*130+300});
+    if(isFat)s+=T(cxp,y0+44,'n=12',{fs:6.5,f:ACC,mono:1,a:'middle',cls:'fade',delay:800});});
+  s+=T(30,26,'SYMMETRIC DOT STACK · WIDEST = CORAL',{fs:7.5,f:i35,mono:1,ls:'.16em',cls:'fade',delay:900});
+  return figwrap(w,h,s);}});
+
+/* 50 琴弦图 PLUCK STRINGS —— 悬停拨动琴弦 */
+fig({n:50,t:'七根弦，等光标来拨',sub:'Pluck Strings · 琴弦（hover 拨动）',note:'弦长=数值，悬停即拨动（震颤+珊瑚）；弦码即底轴刻度。',
+draw:(w,h)=>{const y0=h-70;const d=[28,44,36,58,50,68,40];const m=mx(d);let s='';
+  s+=ln(30,y0+14,w-30,y0+14,i35,1,{cap:'round'});
+  d.forEach((v,i)=>{const x=56+i*(w-100)/(d.length-1);const isMax=v===m;const top=y0-v*3.6;
+    s+=`<line x1="${x}" y1="${y0+14}" x2="${x}" y2="${F1(top)}" stroke="${isMax?ACC:i55}" stroke-width="${isMax?1.8:1.2}" pathLength="1" class="draw str" style="animation-delay:${i*110}ms" data-tip="STRING ${i+1} · ${v}"/>`;
+    s+=dot(x,top,isMax?3.4:2.6,isMax?ACC:INK,{cls:'pop',style:`animation-delay:${i*110+260}ms`,tip:`FRET ${i+1} — ${v} UNITS`});
+    s+=T(x,y0+30,v,{fs:8,f:isMax?ACC:i55,mono:1,a:'middle',cls:'rise',delay:i*110+300});});
+  for(let i=0;i<7;i++){const x=56+i*(w-100)/6;s+=ln(x-4,y0+14,x-4,y0+20,i35,1);}
+  s+=T(30,28,'HOVER A STRING TO PLUCK · LENGTH = VALUE',{fs:7.5,f:i35,mono:1,ls:'.16em',cls:'fade',delay:800});
+  return figwrap(w,h,s);}});
+
+/* 51 罗盘对比图 COMPASS ROSE —— 八向今昔成对读数 */
+fig({n:51,t:'八个方位，两个时代',sub:'Compass Rose · 罗盘对比',note:'每方向一对读数：空心点=上期、实心点=本期；增长向珊瑚实心。',
+draw:(w,h)=>{const cx=w/2,cy=h/2,R=132;const dirs=['N','NE','E','SE','S','SW','W','NW'];
+  const now_=[52,44,68,38,58,34,62,46],old_=[44,50,56,46,50,42,48,52];let s='';
+  s+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${i08}" stroke-width="1"/>`;
+  s+=`<circle cx="${cx}" cy="${cy}" r="${R*.55}" fill="none" stroke="${i08}" stroke-width="1" stroke-dasharray="1 5"/>`;
+  dirs.forEach((d,i)=>{const a=i*45;const[x1,y1]=pol(cx,cy,R-26,a),[x2,y2]=pol(cx,cy,R,a);
+    s+=ln(cx,cy,x2,y2,i08,1,{});s+=ln(x1,y1,x2,y2,i18,1.4);
+    const up=now_[i]>old_[i];const rN=R*.55+now_[i]/70*(R*.45-14),rO=R*.55+old_[i]/70*(R*.45-14);
+    const[pn1,pn2]=pol(cx,cy,rN,a),[po1,po2]=pol(cx,cy,rO,a);
+    s+=dot(pn1,pn2,3.4,up?ACC:INK,{cls:'pop',style:`animation-delay:${i*90}ms`,tip:`${d} NOW · ${now_[i]}${up?' ↑':''}`});
+    s+=dot(po1,po2,3,PAPER,{s:up?ACC:i35,sw:1.2,cls:'pop',style:`animation-delay:${i*90+80}ms`,tip:`${d} PREV · ${old_[i]}`});
+    const[lx,ly]=pol(cx,cy,R+15,a);
+    s+=T(lx,ly+3,d,{fs:8,f:i55,mono:1,a:'middle',cls:'rise',delay:i*90+200});});
+  s+=dot(cx,cy,3,INK,{cls:'pop'});
+  s+=T(cx-R,26,'○ PREV · ● NOW · CORAL = GROWTH',{fs:7.5,f:i35,mono:1,ls:'.14em',a:'middle',cls:'fade',delay:900});
+  return figwrap(w,h,s);}});
+
+/* 52 阶梯竞速图 LADDER RACE —— 横梯上的爬升者 */
+fig({n:52,t:'一架长梯，四位攀登者',sub:'Ladder Race · 阶梯竞速',note:'四级横档为赛道，各选手的爬升轨迹沿档前进；领跑者珊瑚。',
+draw:(w,h)=>{const rungs=4,y0=60,dy=62,x0=70,x1=w-110;let s='';
+  const P=[{k:'APEX',steps:[1,2,3,4],win:1},{k:'NOVA',steps:[1,1,2,3]},{k:'ORBIT',steps:[1,2,2,2]},{k:'EDGE',steps:[1,1,1,2]}];
+  for(let r=1;r<=rungs;r++){const y=y0+(r-1)*dy;
+    s+=ln(x0,y,x1,y,r===rungs?i35:i18,1,{cap:'round',tip:`RUNG ${r}`});
+    s+=T(x0-14,y+3,'R'+r,{fs:7.5,f:i35,mono:1,a:'end',cls:'rise',delay:r*100});}
+  P.forEach((p,pi)=>{const isWin=p.win;let prev=null;
+    p.steps.forEach((st,si)=>{const x=x0+si*(x1-x0)/3,y=y0+(st-1)*dy;
+      if(prev)s+=ln(prev[0],prev[1],x,y,isWin?ACC:inkA(.2+.15*pi),isWin?1.8:1.1,{d:1,cls:'draw',style:`animation-delay:${si*160+pi*80}ms`,tip:`${p.k} → R${st}`});
+      prev=[x,y];
+      s+=dot(x,y,isWin?4:3,isWin?ACC:INK,{cls:'pop',style:`animation-delay:${si*160+pi*80+140}ms`,tip:`${p.k} · ROUND ${si+1} · RUNG ${st}`});});
+    const fy=y0+(p.steps[3]-1)*dy;
+    s+=T(x1+12,fy+3,p.k,{fs:7.5,f:isWin?ACC:i55,mono:1,cls:'rise',delay:800+pi*90});});
+  s+=T(x0,30,'TRAJECTORY PER ROUND · TOP RUNG WINS',{fs:7.5,f:i35,mono:1,ls:'.16em',cls:'fade',delay:1000});
+  s+=T(x1,h-16,'R1→R4',{fs:7,f:i35,mono:1,ls:'.16em',a:'end',cls:'fade',delay:1100});
+  return figwrap(w,h,s);}});
+
+/* ================================================================
+   族 G · 纸面编辑经典（EDITORIAL CLASSICS · 自 art-template 迁入）— 6 型
+   （原 9 型去重 3 种：LAUNCH FAN≈折扇肋/扇射 · PETAL ROSE≈风玫瑰 · PLUMB SCATTER≈琴弦）
+   ================================================================ */
+
+/* 53 点阵瀑布图 DOT CASCADE —— 瀑布重述为堆叠圆点 */
+fig({n:53,t:'这一年从哪里来',sub:'Dot Cascade · 点阵瀑布',note:'每点=一个单位（12/点）：总档实心墨、增长档珊瑚、流失档空心描边；虚线串档。',
+draw:(w,h)=>{const L=36,R=36,Tp=44,B=52,unit=12;
+  const rows=[{k:'FY24',t:'total',v:120},{k:'HARDWARE',t:'up',v:66},{k:'SERVICES',t:'up',v:48},{k:'CHURN',t:'down',v:28},{k:'FY25',t:'total',v:206}];
+  const n=rows.length,maxV=260,baseY=h-B,plotH=baseY-Tp,Y=v=>Tp+(1-v/maxV)*plotH;
+  const colW=(w-L-R)/n;let cum=0;
+  const cols=rows.map(r=>{const c={...r};
+    if(r.t==='total'){c.lo=0;c.hi=r.v;}else{c.lo=Math.min(cum,cum+r.v*(r.t==='up'?1:-1));c.hi=Math.max(cum,cum+r.v*(r.t==='up'?1:-1));}
+    cum=r.t==='total'?r.v:cum+r.v*(r.t==='up'?1:-1);c.cum=cum;return c;});
+  let s='';s+=ln(L-8,baseY,w-R+8,baseY,i35,1);
+  cols.forEach((c,i)=>{const x=L+colW*i+colW/2,cnt=Math.round((c.hi-c.lo)/unit);
+    for(let k=0;k<cnt;k++){const y=Y(c.hi-k*unit),down=c.t==='down';
+      s+=dot(x,y,4.3,c.t==='up'?ACC:(down?PAPER:INK),down?{s:INK,sw:1.1,cls:'pop',style:`animation-delay:${i*140+k*26}ms`}:{cls:'pop',style:`animation-delay:${i*140+k*26}ms`});}
+    const topY=Y(c.hi),delta=c.t==='total'?c.v:(c.t==='up'?'+':'−')+c.v;
+    s+=`<g data-tip="${c.k} — ${delta}"><rect x="${F1(x-colW*.42)}" y="${Tp-6}" width="${F1(colW*.84)}" height="${F1(baseY-Tp+10)}" fill="transparent"/></g>`;
+    s+=T(x,topY-9,delta,{fs:10,f:c.t==='up'?ACC:(c.t==='down'?i55:INK),mono:1,delay:i*140});
+    s+=T(x,baseY+20,c.k,{fs:9,f:i55,mono:1,ls:'.14em',cls:'rise',delay:i*140+120});
+    if(i<n-1){const yLv=Y(c.cum);
+      s+=ln(x+8,yLv,L+colW*(i+1)+colW/2-8,yLv,i35,1,{cls:'fade',style:`animation-delay:${i*140+280}ms;stroke-dasharray:2 4`});}});
+  return figwrap(w,h,s);}});
+
+/* 54 计数刻度行 TICK ROWS —— 五格成组的条码计数 */
+fig({n:54,t:'一周的清点',sub:'Tick Rows · 计数刻度行',note:'每刻度计一单位（2/格），五格成组——直条码摊平的一周；峰值行珊瑚。',
+draw:(w,h)=>{const L=36,R=110,Tp=26,B=26,unit=2;
+  const rows=[['MON',34],['TUE',41],['WED',52],['THU',47],['FRI',63],['SAT',28],['SUN',12]];
+  const n=rows.length,rowH=(h-Tp-B)/n,x0=L+92,tickW=2.6,gap=4.2,groupGap=3.4;
+  const maxI=rows.reduce((m,r,i)=>r[1]>rows[m][1]?i:m,0);let s='';
+  rows.forEach((r,i)=>{const y=Tp+i*rowH,hot=i===maxI,cnt=Math.round(r[1]/unit),col=hot?ACC:INK;let x=x0;
+    s+=`<g data-tip="${r[0]} — ${r[1]} units">`;
+    s+=T(L,y+16,r[0],{fs:10,f:hot?ACC:i55,mono:1,ls:'.16em',w:hot?'600':'400',cls:'rise',delay:i*80});
+    for(let k=0;k<cnt;k++){if(k>0&&k%5===0)x+=groupGap;
+      s+=`<rect x="${F1(x)}" y="${F1(y+4)}" width="${tickW}" height="15" fill="${col}" opacity="${hot?1:.82}" class="pop" style="animation-delay:${i*90+k*16}ms;transform-origin:center bottom"/>`;
+      x+=tickW+gap;}
+    s+=T(w-R,y+16,String(r[1]),{a:'end',fs:11.5,f:hot?ACC:INK,mono:1,w:hot?'600':'400',cls:'rise',delay:i*90+240});
+    s+='</g>';});
+  s+=T(x0,h-2,`ONE TICK = ${unit} UNITS · FIVES GROUPED`,{fs:8,f:i35,mono:1,ls:'.18em',cls:'fade',delay:400});
+  return figwrap(w,h,s);}});
+
+/* 55 成对横档图 PAIRED RUNGS —— 两轨斜率对照 */
+fig({n:55,t:'每队的前与后',sub:'Paired Rungs · 成对横档',note:'两轨一档：上期→本期斜率连接，上行档珊瑚；右列即变化方向。',
+draw:(w,h)=>{const L=64,R=130,Tp=42,B=34;
+  const a='2024',b='2025';
+  const rows=[['DESIGN',54,71],['GROWTH',62,58],['PLATFORM',78,96],['SUPPORT',41,44],['DATA',33,52]];
+  const n=rows.length,maxV=100,baseY=h-B,plotH=baseY-Tp,Y=v=>baseY-(v/maxV)*plotH;
+  const xA=w*.42,xB=w*.68;let s='';
+  [0,25,50,75,100].forEach(v=>{const y=Y(v);
+    s+=ln(L-6,y,xB+10,y,v===0?i35:i18,1);
+    s+=T(L-14,y+3,String(v),{a:'end',fs:8.5,f:i35,mono:1});});
+  [[xA,a],[xB,b]].forEach(([x,lab])=>{
+    s+=ln(x,Tp-14,x,baseY,i18,1);
+    s+=T(x,Tp-22,lab,{a:'middle',fs:10,f:INK,mono:1,ls:'.14em',cls:'rise',delay:200});});
+  rows.forEach((r,i)=>{const yA=Y(r[1]),yB=Y(r[2]),up=r[2]>r[1],col=up?ACC:i35,pct=Math.round((r[2]-r[1])/r[1]*100);
+    s+=`<g data-tip="${r[0]} — ${r[1]} → ${r[2]} (${pct>=0?'+':''}${pct}%)">`;
+    s+=ln(xA,yA,xB,yB,col,up?1.6:1.2,{d:1,cls:'draw',style:`animation-delay:${i*130}ms`});
+    s+=dot(xA,yA,3.4,up?PAPER:INK,up?{s:INK,sw:1.1,cls:'pop',style:`animation-delay:${i*130+300}ms`}:{cls:'pop',style:`animation-delay:${i*130+300}ms`});
+    s+=dot(xB,yB,3.4,up?ACC:INK,{cls:'pop',style:`animation-delay:${i*130+380}ms`});
+    s+=T(xB+16,(yA+yB)/2+3,r[0],{fs:9.5,f:up?INK:i55,mono:1,ls:'.1em',cls:'rise',delay:i*130+300});
+    s+='</g>';});
+  return figwrap(w,h,s);}});
+
+/* 56 区间胶囊图 RANGE CAPSULES —— 低—高胶囊+收盘点 */
+fig({n:56,t:'十二个月的余量',sub:'Range Capsules · 区间胶囊',note:'胶囊=低至高区间（圆端粗线），珊瑚点标记收盘；右列等宽数字。',
+draw:(w,h)=>{const L=70,R=78,Tp=34,B=34;
+  const rows=[['EUR',3.1,4.2,5.6],['USD',2.2,3.4,4.9],['GBP',4.0,5.1,6.3],['JPY',0.8,1.6,2.4],['CNY',1.9,2.8,3.3]];
+  const n=rows.length,rowH=(h-Tp-B)/n,lo=Math.min(...rows.map(r=>r[1])),hi=Math.max(...rows.map(r=>r[3]));
+  const X=v=>L+((v-lo)/(hi-lo))*(w-L-R-30);let s='';
+  s+=ln(L,h-B+10,w-R-30,h-B+10,i35,1);
+  rows.forEach((r,i)=>{const y=Tp+i*rowH+rowH/2,x1=X(r[1]),x2=X(r[3]),xc=X(r[2]);
+    s+=`<g data-tip="${r[0]} — low ${r[1]} · close ${r[2]} · high ${r[3]}">`;
+    s+=ln(L,y,w-R-30,y,i18,1,{cls:'fade',style:`animation-delay:${i*110}ms`});
+    s+=ln(x1,y,x2,y,i35,9,{cap:'round',cls:'growX',style:`animation-delay:${i*110+100}ms`});
+    s+=T(x1,y-10,String(r[1]),{a:'middle',fs:8.5,f:i35,mono:1,cls:'rise',delay:i*110+300});
+    s+=T(x2,y-10,String(r[3]),{a:'middle',fs:8.5,f:i35,mono:1,cls:'rise',delay:i*110+300});
+    s+=dot(xc,y,4,ACC,{cls:'pop',style:`animation-delay:${i*110+380}ms`});
+    s+=T(w-R+8,y+3.5,String(r[2]),{a:'start',fs:11.5,f:INK,mono:1,w:'600',cls:'rise',delay:i*110+380});
+    s+=T(L,y+3.5,r[0],{a:'end',fs:9.5,f:i55,mono:1,ls:'.14em',cls:'rise',delay:i*110});
+    s+='</g>';});
+  return figwrap(w,h,s);}});
+
+/* 57 轨道环图 ORBITAL RING —— 份额弧+巡航卫星 */
+fig({n:57,t:'一件产品，四条轨道',sub:'Orbital Ring · 轨道环',note:'份额即弧段，主弧珊瑚加厚；两颗光点沿环永续巡航，中心大数定音。',
+draw:(w,h)=>{const cx=w/2,cy=h/2-4,R=104,sw=17;
+  const center='5.2M',subc='ACTIVE USERS';
+  const rows=[['CORE',42],['APPS',26],['EDGE',18],['LABS',14]];
+  const total=rows.reduce((p,c)=>p+c[1],0);
+  let a=-90+2,s='';
+  for(let i=0;i<24;i++){const[t0x,t0y]=pol(cx,cy,R+18,i*15),[t1x,t1y]=pol(cx,cy,R+23,i*15);
+    s+=ln(t0x,t0y,t1x,t1y,i18,1,{cls:'fade',style:`animation-delay:${i*22}ms`});}
+  const shades=[INK,inkA(.62),inkA(.4)];
+  rows.forEach((r,i)=>{const sweep=r[1]/total*360-3.4,hot=i===0;
+    s+=`<path d="${arc(cx,cy,R,a,a+sweep)}" fill="none" stroke="${hot?ACC:shades[i%3]}" stroke-width="${hot?sw:sw-2}" pathLength="1" class="draw" style="animation-delay:${i*170}ms" data-tip="${r[0]} — ${r[1]}%"/>`;
+    a+=sweep+3.4;});
+  const ox1=cx+R,ox2=cx-R;
+  s+=`<circle r="3.2" fill="${ACC}"><animateMotion dur="16s" repeatCount="indefinite" path="M${F1(ox1)} ${F1(cy)}A${R} ${R} 0 1 1 ${F1(ox2)} ${F1(cy)}A${R} ${R} 0 1 1 ${F1(ox1)} ${F1(cy)}"/></circle>`;
+  s+=`<circle r="1.6" fill="${INK}" opacity=".55"><animateMotion dur="26s" repeatCount="indefinite" begin="-9s" path="M${F1(ox1)} ${F1(cy-34)}A${R-34} ${R-34} 0 1 0 ${F1(ox2)} ${F1(cy-34)}A${R-34} ${R-34} 0 1 0 ${F1(ox1)} ${F1(cy-34)}"/></circle>`;
+  s+=T(cx,cy-4,center,{a:'middle',fs:30,f:INK,serif:1,cls:'rise',delay:520});
+  s+=T(cx,cy+16,subc,{a:'middle',fs:8,f:i35,mono:1,ls:'.24em',cls:'fade',delay:640});
+  let ly=h-26;
+  rows.forEach((r,i)=>{const hot=i===0;
+    s+=`<g data-tip="${r[0]} — ${r[1]}%">`;
+    s+=`<rect x="${F1(cx-110)}" y="${F1(ly-7)}" width="10" height="3" fill="${hot?ACC:shades[i%3]}" class="fade" style="animation-delay:${600+i*90}ms"/>`;
+    s+=T(cx-92,ly-3.5,`${r[0]}  ${r[1]}%`,{fs:8.5,f:hot?INK:i55,mono:1,ls:'.12em',cls:'rise',delay:640+i*90});
+    s+='</g>';ly+=15;});
+  return figwrap(w,h,s);}});
+
+/* 58 年轮环图 REVENUE RINGS —— 三年径向闭环缓转 */
+fig({n:58,t:'三年，三圈年轮',sub:'Revenue Rings · 年轮环',note:'每年 12 个月的径向闭环（外圈=最新年），整组 90s 缓转；末年珊瑚定调。',
+draw:(w,h)=>{const cx=w/2-10,cy=h/2+4;
+  const M=['J','F','M','A','M','J','J','A','S','O','N','D'];
+  const years=[{y:'2023',v:[38,34,42,45,40,48,52,50,46,55,58,60]},{y:'2024',v:[52,49,56,60,58,64,70,68,66,72,78,80]},{y:'2025',v:[66,62,70,76,74,80,86,84,82,88,92,97]}];
+  const maxV=mx(years.flatMap(y=>y.v));const bw=26,gap=11,r0=40;let s='';
+  M.forEach((m,i)=>{const[lx,ly]=pol(cx,cy,r0+3*(bw+gap)+bw+14,i*30+15);
+    s+=T(lx,ly+3,m,{a:'middle',fs:8.5,f:i35,mono:1});});
+  s+=`<g class="spin">`;
+  years.forEach((yr,yi)=>{const rin=r0+yi*(bw+gap),last=yi===years.length-1;
+    const col=last?ACC:inkA(.28+yi*.16);
+    const pts=yr.v.map((v,mi)=>pol(cx,cy,rin+(v/maxV)*bw,mi*30+15));
+    s+=`<path d="M${pts.map(p=>F1(p[0])+' '+F1(p[1])).join('L')}Z" fill="none" stroke="${col}" stroke-width="${last?1.6:1.2}" pathLength="1" class="draw" style="animation-delay:${yi*220}ms"/>`;
+    yr.v.forEach((v,mi)=>{const[px,py]=pol(cx,cy,rin+(v/maxV)*bw,mi*30+15);
+      s+=dot(px,py,last?2.4:1.8,col,{cls:'pop',style:`animation-delay:${yi*220+300+mi*30}ms`,tip:`${yr.y} · ${M[mi]} — ${v}`});});});
+  s+='</g>';
+  years.forEach((yr,yi)=>{const last=yi===years.length-1;
+    s+=T(w-96,34+yi*20,yr.y,{fs:10,f:last?ACC:i55,mono:1,ls:'.14em',w:last?'600':'400',cls:'rise',delay:yi*220+200});
+    s+=`<rect x="${F1(w-140)}" y="${F1(34+yi*20-8)}" width="26" height="2" fill="${last?ACC:inkA(.28+yi*.16)}" class="growX" style="animation-delay:${yi*220+200}ms"/>`;});
+  s+=T(w-96,34+years.length*20+2,'EACH RING = 12 MO',{fs:7.5,f:i35,mono:1,ls:'.16em',cls:'fade',delay:900});
+  return figwrap(w,h,s);}});
+
+/* ================= 挂载 · 交互 · 重播 ================= */
+const root=document.getElementById('charts');
+root.innerHTML=CH.map(o=>`<figure class="fig"><div class="fighead"><div class="hleft"><span class="kicker">FIG. ${String(o.n).padStart(2,'0')}</span><h2 class="ft">${o.t}</h2><span class="fsub">${o.sub}</span></div><button class="rp" data-n="${o.n}" title="重播此图">↻ REPLAY</button></div><div class="viz">${o.draw(o.w||560,o.h||350)}</div><figcaption class="fnote">${o.note||''}</figcaption></figure>`).join('');
+function initFig(o){const el=document.getElementById('charts');if(!el)return;
+  const figEl=root.querySelector(`figure:nth-child(${CH.indexOf(o)+1})`);
+  if(o.init&&figEl)o.init(figEl);}
+CH.forEach(initFig);
+root.addEventListener('click',e=>{const b=e.target.closest('.rp');if(!b)return;
+  const o=CH.find(c=>c.n===+b.dataset.n);if(!o)return;
+  const figEl=b.closest('figure');if(!figEl)return;
+  if(figEl._raf)cancelAnimationFrame(figEl._raf);
+  figEl.querySelector('.viz').innerHTML=o.draw(o.w||560,o.h||350);
+  if(o.init)o.init(figEl);});
+function renderAll(){CH.forEach((o,i)=>{const figEl=root.querySelectorAll('figure')[i];if(!figEl)return;
+  if(figEl._raf)cancelAnimationFrame(figEl._raf);
+  figEl.querySelector('.viz').innerHTML=o.draw(o.w||560,o.h||350);
+  if(o.init)o.init(figEl);});}
+document.getElementById('allrp').addEventListener('click',renderAll);
+document.getElementById('themes').addEventListener('click',e=>{
+  const b=e.target.closest('.thm');if(!b)return;
+  CUR=THEMES[b.dataset.theme];applyPaletteVars();
+  document.querySelectorAll('.thm').forEach(x=>x.classList.toggle('on',x===b));
+  renderAll();});
+const tip=document.getElementById('tip');
+document.addEventListener('mousemove',e=>{const t=e.target.closest&&e.target.closest('[data-tip]');
+  if(t){tip.textContent=t.dataset.tip;tip.style.opacity=1;
+    let x=e.clientX+14,y=e.clientY+14;const r=tip.getBoundingClientRect();
+    if(x+r.width>innerWidth)x=e.clientX-r.width-14;
+    if(y+r.height>innerHeight)y=e.clientY-r.height-14;
+    tip.style.left=x+'px';tip.style.top=y+'px';}
+  else tip.style.opacity=0;});
+</script>
+</body>
+</html>
