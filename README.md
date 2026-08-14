@@ -47,12 +47,34 @@ A gallery of 58 editorial-style graph art figures — an interactive HTML data-v
 
 完整 58 型名录（中文图名 + 英文类型 + 交互说明 + 选型速查）见 [`references/figure-catalog.md`](references/figure-catalog.md)。
 
+## 🖼 画廊预览 / Gallery Preview
+
+<table>
+  <tr>
+    <td width="50%"><img src="screenshots/gallery-01-masthead.png" alt="Masthead" /></td>
+    <td width="50%"><img src="screenshots/gallery-02-radial-dandelion.png" alt="Radial Dandelion" /></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/gallery-03-fan-rings.png" alt="Fan Rings" /></td>
+    <td><img src="screenshots/gallery-04-force-graph.png" alt="Force Graph" /></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/gallery-05-network-flows.png" alt="Network Flows" /></td>
+    <td><img src="screenshots/gallery-06-sankey-bundling.png" alt="Sankey Bundling" /></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/gallery-07-flow-tidal.png" alt="Flow and Tidal" /></td>
+    <td><img src="screenshots/gallery-08-editorial-classic.png" alt="Editorial Classic" /></td>
+  </tr>
+</table>
+
 ## 📁 仓库结构 / Structure
 
 ```
 ├── SKILL.md                          # Agent 技能定义（入口）
 ├── assets/
 │   └── editorial-graph-gallery.html  # 画廊本体 · 58 型模板源
+├── screenshots/                      # README 画廊预览图
 ├── references/
 │   ├── figure-catalog.md             # 58 型总目 + 选型速查
 │   ├── design-system.md              # 设计规范（纸面/三主题/动效三档）
